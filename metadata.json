@@ -1,0 +1,6 @@
+{
+  "name": "Super 30 Cricket Academy",
+  "description": "High-fidelity training app for cricket players, parents, and coaches. Features session feedback, drill assignments, progress tracking, match reports, AI-powered automatic coaching insights, and virtual net-practice match simulation.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

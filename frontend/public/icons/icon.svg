@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Background -->
+  <rect width="512" height="512" rx="80" fill="#0A0A0B"/>
+  <!-- Emerald circle accent -->
+  <circle cx="256" cy="220" r="140" fill="none" stroke="#10b981" stroke-width="12"/>
+  <!-- Cricket bat simplified -->
+  <rect x="228" y="100" width="56" height="180" rx="14" fill="#10b981"/>
+  <!-- Cricket ball -->
+  <circle cx="256" cy="340" r="44" fill="#10b981"/>
+  <path d="M220 325 Q256 310 292 325" stroke="#0A0A0B" stroke-width="5" fill="none"/>
+  <path d="M218 355 Q256 370 294 355" stroke="#0A0A0B" stroke-width="5" fill="none"/>
+  <!-- "30" text -->
+  <text x="256" y="470" font-family="Arial Black, sans-serif" font-size="80" font-weight="900" fill="#10b981" text-anchor="middle">30</text>
+</svg>
