@@ -404,6 +404,8 @@ function AppContent() {
                   players={players}
                   drills={drills}
                   sessions={sessions}
+                  questions={questions}
+                  onAnswerQuestion={handleAnswerQuestion}
                   onAddSession={handleAddSession}
                 />
               )}

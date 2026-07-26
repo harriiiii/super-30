@@ -12,6 +12,7 @@ interface Props {
 
 export function AddPlayerForm({ onPlayerAdded }: Props) {
   const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
   const [age, setAge] = useState('');
   const [role, setRole] = useState<Player['role']>('Batsman');
   const [parentName, setParentName] = useState('');
@@ -24,7 +25,7 @@ export function AddPlayerForm({ onPlayerAdded }: Props) {
   const [copied, setCopied] = useState(false);
 
   const reset = () => {
-    setName(''); setAge(''); setRole('Batsman');
+    setName(''); setEmail(''); setAge(''); setRole('Batsman');
     setParentName(''); setParentEmail(''); setAvatar('🏏');
     setError(''); setCreated(null); setCopied(false);
   };
@@ -40,14 +41,14 @@ export function AddPlayerForm({ onPlayerAdded }: Props) {
 
     setLoading(true);
     try {
-      const result = await api.players.create({ name: name.trim(), age: ageNum, role, parentName: parentName.trim(), parentEmail: parentEmail.trim().toLowerCase(), avatar });
+      const result = await api.players.create({ name: name.trim(), email: email.trim().toLowerCase(), age: ageNum, role, parentName: parentName.trim(), parentEmail: parentEmail.trim().toLowerCase(), avatar });
       if (result) {
         const { defaultPassword, defaultPlayerPassword, ...player } = result;
         setCreated({ player, defaultPassword, defaultPlayerPassword });
         onPlayerAdded(player);
       }
     } catch (err: any) {
-      setError(err.message);
+      setError(err.message || 'Failed to add player');
     } finally {
       setLoading(false);
     }
@@ -135,7 +136,7 @@ export function AddPlayerForm({ onPlayerAdded }: Props) {
         </div>
         <div>
           <h3 className="font-bold text-slate-800">Add New Player</h3>
-          <p className="text-xs text-slate-500">A login will be auto-created for the parent.</p>
+          <p className="text-xs text-slate-500">Logins will be created for both player and parent.</p>
         </div>
       </div>
 
@@ -158,6 +159,12 @@ export function AddPlayerForm({ onPlayerAdded }: Props) {
           <div className="col-span-2">
             <label className="block text-xs font-semibold text-slate-400 mb-1.5 uppercase tracking-wide">Player Name</label>
             <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Full name" required
+              className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500" />
+          </div>
+
+          <div className="col-span-2">
+            <label className="block text-xs font-semibold text-slate-400 mb-1.5 uppercase tracking-wide">Player Email</label>
+            <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="player@example.com" required
               className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500" />
           </div>
 
@@ -194,7 +201,7 @@ export function AddPlayerForm({ onPlayerAdded }: Props) {
 
         <button type="submit" disabled={loading}
           className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-semibold py-2.5 rounded-lg transition text-sm">
-          {loading ? 'Adding player...' : 'Add Player & Generate Login'}
+          {loading ? 'Adding player...' : 'Add Player & Generate Logins'}
         </button>
       </form>
     </div>
