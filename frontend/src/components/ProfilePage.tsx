@@ -30,6 +30,7 @@ export function ProfilePage({ onBack }: Props) {
   const [pwSuccess, setPwSuccess] = useState(false);
 
   const isPlayer = user?.role === 'player';
+  const isParent = user?.role === 'parent';
 
   const handleProfileSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -84,16 +85,26 @@ export function ProfilePage({ onBack }: Props) {
 
         {/* Identity card */}
         <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-6 flex items-center gap-4">
-          <div className={`p-4 rounded-2xl ${isPlayer ? 'bg-indigo-100 text-indigo-600' : 'bg-emerald-100 text-emerald-600'}`}>
-            {isPlayer ? <Users className="h-8 w-8" /> : <Shield className="h-8 w-8" />}
+          <div className={`p-4 rounded-2xl ${
+            isPlayer 
+              ? 'bg-indigo-100 text-indigo-600' 
+              : isParent 
+                ? 'bg-teal-100 text-teal-600' 
+                : 'bg-emerald-100 text-emerald-600'
+          }`}>
+            {isPlayer ? <Users className="h-8 w-8" /> : isParent ? <Users className="h-8 w-8" /> : <Shield className="h-8 w-8" />}
           </div>
           <div>
             <h2 className="text-lg font-extrabold text-slate-800">{user?.name}</h2>
             <p className="text-xs text-slate-500 font-mono">{user?.email}</p>
             <span className={`inline-block mt-1.5 text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full ${
-              isPlayer ? 'bg-indigo-100 text-indigo-700' : 'bg-emerald-100 text-emerald-700'
+              isPlayer 
+                ? 'bg-indigo-100 text-indigo-700' 
+                : isParent 
+                  ? 'bg-teal-100 text-teal-700' 
+                  : 'bg-emerald-100 text-emerald-700'
             }`}>
-              {isPlayer ? 'Player & Parent' : 'Coach'}
+              {isPlayer ? 'Player' : isParent ? 'Parent' : 'Coach'}
             </span>
           </div>
         </div>

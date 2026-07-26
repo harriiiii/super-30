@@ -10,12 +10,21 @@ export const coaches = pgTable('coaches', {
 export const players = pgTable('players', {
   id: varchar('id', { length: 50 }).primaryKey(),
   name: varchar('name', { length: 100 }).notNull(),
+  email: varchar('email', { length: 200 }).unique(),
   parentName: varchar('parent_name', { length: 100 }).notNull(),
   parentEmail: varchar('parent_email', { length: 200 }).notNull(),
   age: integer('age').notNull(),
   role: varchar('role', { length: 30 }).notNull(),
   avatar: text('avatar').notNull(),
   passwordHash: text('password_hash'),
+});
+
+export const parents = pgTable('parents', {
+  id: varchar('id', { length: 50 }).primaryKey(),
+  playerId: varchar('player_id', { length: 50 }).notNull().references(() => players.id, { onDelete: 'cascade' }),
+  name: varchar('name', { length: 100 }).notNull(),
+  email: varchar('email', { length: 200 }).notNull().unique(),
+  passwordHash: text('password_hash').notNull(),
 });
 
 export const drills = pgTable('drills', {

@@ -3,7 +3,7 @@ import { eq } from 'drizzle-orm';
 import { Router } from 'express';
 import jwt from 'jsonwebtoken';
 import { db } from '../db/index.js';
-import { coaches, players } from '../db/schema.js';
+import { coaches, players, parents } from '../db/schema.js';
 import { requireAuth } from '../middleware/auth.js';
 
 const router = Router();
@@ -65,7 +65,7 @@ router.post('/player/login', async (req, res) => {
     return;
   }
 
-  const [player] = await db.select().from(players).where(eq(players.parentEmail, email.toLowerCase()));
+  const [player] = await db.select().from(players).where(eq(players.email, email.toLowerCase()));
   if (!player || !player.passwordHash) {
     res.status(401).json({ error: 'Invalid email or password' });
     return;
@@ -80,9 +80,39 @@ router.post('/player/login', async (req, res) => {
   const payload = {
     role: 'player' as const,
     id: player.id,
-    name: player.parentName,
-    email: player.parentEmail,
+    name: player.name,
+    email: player.email || '',
     playerId: player.id,
+  };
+  const token = jwt.sign(payload, process.env.JWT_SECRET!, { expiresIn: '7d' });
+  res.json({ token, user: payload });
+});
+
+router.post('/parent/login', async (req, res) => {
+  const { email, password } = req.body;
+  if (!email || !password) {
+    res.status(400).json({ error: 'Email and password are required' });
+    return;
+  }
+
+  const [parent] = await db.select().from(parents).where(eq(parents.email, email.toLowerCase()));
+  if (!parent) {
+    res.status(401).json({ error: 'Invalid email or password' });
+    return;
+  }
+
+  const valid = await bcrypt.compare(password, parent.passwordHash);
+  if (!valid) {
+    res.status(401).json({ error: 'Invalid email or password' });
+    return;
+  }
+
+  const payload = {
+    role: 'parent' as const,
+    id: parent.id,
+    name: parent.name,
+    email: parent.email,
+    playerId: parent.playerId,
   };
   const token = jwt.sign(payload, process.env.JWT_SECRET!, { expiresIn: '7d' });
   res.json({ token, user: payload });
@@ -116,23 +146,43 @@ router.patch('/profile', requireAuth, async (req, res) => {
     const payload = { role: 'coach' as const, id: updated.id, name: updated.name, email: updated.email };
     const token = jwt.sign(payload, process.env.JWT_SECRET!, { expiresIn: '7d' });
     res.json({ token, user: payload });
-  } else {
-    // Player — name = parentName, email = parentEmail
-    const [taken] = await db.select().from(players).where(eq(players.parentEmail, newEmail));
+  } else if (user.role === 'player') {
+    // Student Player profile update
+    const [taken] = await db.select().from(players).where(eq(players.email, newEmail));
     if (taken && taken.id !== user.id) {
       res.status(409).json({ error: 'Email already in use by another account' });
       return;
     }
     const [updated] = await db.update(players)
-      .set({ parentName: name, parentEmail: newEmail })
+      .set({ name, email: newEmail })
       .where(eq(players.id, user.id))
       .returning();
     const payload = {
       role: 'player' as const,
       id: updated.id,
-      name: updated.parentName,
-      email: updated.parentEmail,
+      name: updated.name,
+      email: updated.email || '',
       playerId: updated.id,
+    };
+    const token = jwt.sign(payload, process.env.JWT_SECRET!, { expiresIn: '7d' });
+    res.json({ token, user: payload });
+  } else {
+    // Parent profile update
+    const [taken] = await db.select().from(parents).where(eq(parents.email, newEmail));
+    if (taken && taken.id !== user.id) {
+      res.status(409).json({ error: 'Email already in use by another account' });
+      return;
+    }
+    const [updated] = await db.update(parents)
+      .set({ name, email: newEmail })
+      .where(eq(parents.id, user.id))
+      .returning();
+    const payload = {
+      role: 'parent' as const,
+      id: updated.id,
+      name: updated.name,
+      email: updated.email,
+      playerId: updated.playerId,
     };
     const token = jwt.sign(payload, process.env.JWT_SECRET!, { expiresIn: '7d' });
     res.json({ token, user: payload });
@@ -160,7 +210,7 @@ router.patch('/password', requireAuth, async (req, res) => {
     }
     const passwordHash = await bcrypt.hash(newPassword, 10);
     await db.update(coaches).set({ passwordHash }).where(eq(coaches.id, user.id));
-  } else {
+  } else if (user.role === 'player') {
     const [player] = await db.select().from(players).where(eq(players.id, user.id));
     if (!player || !player.passwordHash || !(await bcrypt.compare(currentPassword, player.passwordHash))) {
       res.status(401).json({ error: 'Current password is incorrect' });
@@ -168,6 +218,14 @@ router.patch('/password', requireAuth, async (req, res) => {
     }
     const passwordHash = await bcrypt.hash(newPassword, 10);
     await db.update(players).set({ passwordHash }).where(eq(players.id, user.id));
+  } else {
+    const [parent] = await db.select().from(parents).where(eq(parents.id, user.id));
+    if (!parent || !(await bcrypt.compare(currentPassword, parent.passwordHash))) {
+      res.status(401).json({ error: 'Current password is incorrect' });
+      return;
+    }
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+    await db.update(parents).set({ passwordHash }).where(eq(parents.id, user.id));
   }
 
   res.json({ message: 'Password updated successfully' });

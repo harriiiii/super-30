@@ -18,7 +18,7 @@ async function loginRequest(path: string, email: string, password: string) {
 
 export function LoginPage() {
   const { login } = useAuth();
-  const [tab, setTab] = useState<'coach' | 'player'>('coach');
+  const [tab, setTab] = useState<'coach' | 'player' | 'parent'>('coach');
   const [mode, setMode] = useState<'login' | 'register'>('login');
 
   // Shared fields
@@ -34,7 +34,7 @@ export function LoginPage() {
     setName(''); setEmail(''); setPassword(''); setConfirmPassword(''); setError('');
   };
 
-  const switchTab = (t: 'coach' | 'player') => {
+  const switchTab = (t: 'coach' | 'player' | 'parent') => {
     setTab(t); setMode('login'); resetForm();
   };
 
@@ -57,7 +57,11 @@ export function LoginPage() {
         const { token, user } = await api.auth.coachRegister(name.trim(), email.trim(), password);
         login(token, user);
       } else {
-        const path = tab === 'coach' ? '/auth/coach/login' : '/auth/player/login';
+        const path = tab === 'coach' 
+          ? '/auth/coach/login' 
+          : tab === 'player' 
+            ? '/auth/player/login' 
+            : '/auth/parent/login';
         const { token, user } = await loginRequest(path, email.trim(), password);
         login(token, user);
       }
@@ -85,24 +89,33 @@ export function LoginPage() {
         <div className="bg-slate-800 rounded-2xl border border-slate-700 shadow-2xl overflow-hidden">
 
           {/* Tab switcher */}
-          <div className="grid grid-cols-2 border-b border-slate-700">
+          <div className="grid grid-cols-3 border-b border-slate-700">
             <button
               onClick={() => switchTab('coach')}
-              className={`flex items-center justify-center gap-2 py-4 text-sm font-semibold transition ${
+              className={`flex items-center justify-center gap-1.5 py-4 text-xs font-semibold transition ${
                 tab === 'coach' ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:text-white hover:bg-slate-700'
               }`}
             >
-              <Shield className="h-4 w-4" />
+              <Shield className="h-3.5 w-3.5" />
               Coach
             </button>
             <button
               onClick={() => switchTab('player')}
-              className={`flex items-center justify-center gap-2 py-4 text-sm font-semibold transition ${
+              className={`flex items-center justify-center gap-1.5 py-4 text-xs font-semibold transition ${
                 tab === 'player' ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:text-white hover:bg-slate-700'
               }`}
             >
-              <Users className="h-4 w-4" />
-              Player / Parent
+              <User className="h-3.5 w-3.5" />
+              Player
+            </button>
+            <button
+              onClick={() => switchTab('parent')}
+              className={`flex items-center justify-center gap-1.5 py-4 text-xs font-semibold transition ${
+                tab === 'parent' ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:text-white hover:bg-slate-700'
+              }`}
+            >
+              <Users className="h-3.5 w-3.5" />
+              Parent
             </button>
           </div>
 
@@ -111,10 +124,12 @@ export function LoginPage() {
             {/* Mode subtitle */}
             <p className="text-slate-400 text-xs">
               {tab === 'player'
-                ? 'Sign in with the parent email linked to your player profile.'
-                : mode === 'login'
-                  ? 'Sign in to your coach account.'
-                  : 'Create a new coach account.'}
+                ? 'Sign in with the student email assigned to your player profile.'
+                : tab === 'parent'
+                  ? 'Sign in with the parent email linked to your child\'s profile.'
+                  : mode === 'login'
+                    ? 'Sign in to your coach account.'
+                    : 'Create a new coach account.'}
             </p>
 
             {/* Name field — register only */}
@@ -144,7 +159,7 @@ export function LoginPage() {
                   type="email"
                   value={email}
                   onChange={e => setEmail(e.target.value)}
-                  placeholder={tab === 'coach' ? 'coach@example.com' : 'parent@example.com'}
+                  placeholder={tab === 'coach' ? 'coach@example.com' : tab === 'player' ? 'player@super30.com' : 'parent@example.com'}
                   required
                   className="w-full bg-slate-700 border border-slate-600 text-white rounded-lg pl-10 pr-4 py-2.5 text-sm placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
                 />

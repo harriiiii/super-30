@@ -263,7 +263,7 @@ function AppContent() {
               <div className="text-right">
                 <p className="text-sm font-semibold text-white leading-tight">{user?.name}</p>
                 <p className="text-[10px] text-emerald-400 font-mono uppercase tracking-wide">
-                  {user?.role === 'coach' ? 'Coach' : 'Player & Parent'}
+                  {user?.role === 'coach' ? 'Coach' : user?.role === 'parent' ? 'Parent' : 'Player'}
                 </p>
               </div>
             </button>
@@ -453,9 +453,9 @@ function AppContent() {
                             )}
                             <div className="flex-1 min-w-0">
                               <p className="font-semibold text-sm text-slate-800">{p.name}</p>
-                              <p className="text-xs text-slate-500">{p.role} · Age {p.age} · Parent: {p.parentName}</p>
+                              <p className="text-xs text-slate-500">{p.role} · Age {p.age} · Student: {p.email || 'N/A'} · Parent: {p.parentName}</p>
                             </div>
-                            <span className="text-xs text-slate-400 font-mono truncate max-w-[200px] hidden sm:block">{p.parentEmail}</span>
+                            <span className="text-xs text-slate-400 font-mono truncate max-w-[250px] hidden sm:block">Parent: {p.parentEmail}</span>
                           </li>
                         ))}
                       </ul>

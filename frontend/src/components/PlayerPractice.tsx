@@ -165,8 +165,17 @@ export const PlayerPractice: React.FC<PlayerPracticeProps> = ({
               <span className="text-xs bg-indigo-500/30 text-indigo-200 px-2 py-0.5 rounded-full font-semibold">
                 {currentPlayer?.role}
               </span>
+              {user?.role === 'parent' && (
+                <span className="text-xs bg-emerald-500/30 text-emerald-200 px-2 py-0.5 rounded-full font-semibold">
+                  Parent Portal
+                </span>
+              )}
             </div>
-            <p className="text-xs text-slate-400 mt-0.5">Parent: <span className="text-slate-200">{currentPlayer?.parentName}</span> ({currentPlayer?.parentEmail})</p>
+            {user?.role === 'parent' ? (
+              <p className="text-xs text-slate-400 mt-0.5">Viewing as Parent: <span className="text-slate-200 font-semibold">{currentPlayer?.parentName}</span> ({currentPlayer?.parentEmail})</p>
+            ) : (
+              <p className="text-xs text-slate-400 mt-0.5">Parent contact: <span className="text-slate-200">{currentPlayer?.parentName}</span> ({currentPlayer?.parentEmail})</p>
+            )}
             <p className="text-xs text-slate-400">Academy ID: S30-P{currentPlayer?.id.toUpperCase()}</p>
           </div>
         </div>
@@ -298,46 +307,60 @@ export const PlayerPractice: React.FC<PlayerPracticeProps> = ({
 
             {/* Sidebar parent progress reporting panel */}
             <div className="space-y-6">
-              <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm space-y-4">
-                <div className="flex justify-between items-center">
-                  <h3 className="text-base font-bold text-slate-800">Parents Periodic Report</h3>
-                  <FileText className="h-5 w-5 text-indigo-500" />
-                </div>
-                <p className="text-xs text-slate-600">Download customized periodic performance report of player drill compliance and technical progress.</p>
-                
-                <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg space-y-2">
-                  <div className="flex justify-between text-xs font-semibold text-slate-700">
-                    <span>Weekly Compliance Rate:</span>
-                    <span className="text-emerald-600">86%</span>
+              {user?.role === 'parent' ? (
+                <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm space-y-4">
+                  <div className="flex justify-between items-center">
+                    <h3 className="text-base font-bold text-slate-800">Parents Periodic Report</h3>
+                    <FileText className="h-5 w-5 text-indigo-500" />
                   </div>
-                  <div className="w-full bg-slate-200 rounded-full h-1.5">
-                    <div className="bg-emerald-500 h-1.5 rounded-full" style={{ width: '86%' }} />
+                  <p className="text-xs text-slate-600">Download customized periodic performance report of player drill compliance and technical progress.</p>
+                  
+                  <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg space-y-2">
+                    <div className="flex justify-between text-xs font-semibold text-slate-700">
+                      <span>Weekly Compliance Rate:</span>
+                      <span className="text-emerald-600">86%</span>
+                    </div>
+                    <div className="w-full bg-slate-200 rounded-full h-1.5">
+                      <div className="bg-emerald-500 h-1.5 rounded-full" style={{ width: '86%' }} />
+                    </div>
+                    <p className="text-[10px] text-slate-400">Total Drills Practiced: {logs.length} sessions logged this month.</p>
                   </div>
-                  <p className="text-[10px] text-slate-400">Total Drills Practiced: {logs.length} sessions logged this month.</p>
-                </div>
 
-                <a
-                  href={`data:text/plain;charset=utf-8,${encodeURIComponent(
-                    `SUPER 30 CRICKET ACADEMY - PARENT COMPLIANCE REPORT\n` +
-                    `Player Name: ${currentPlayer?.name}\n` +
-                    `Parent Name: ${currentPlayer?.parentName}\n` +
-                    `Date: ${new Date().toLocaleDateString()}\n\n` +
-                    `--- COMPLIANCE SUMMARY ---\n` +
-                    `Weekly Drill Practice Rate: 86%\n` +
-                    `Total Drill Reps Completed: 450 reps\n\n` +
-                    `--- DETAILED DRILL PRACTICE HISTORIES ---\n` +
-                    logs.map(log => {
-                      const d = drills.find(dri => dri.id === log.drillId);
-                      return `- [${log.date}] Drill: ${d?.name || log.drillId}\n  Status: VERIFIED BY COACH\n  Player Note: "${log.notes}"\n`;
-                    }).join('\n')
-                  )}`}
-                  download={`Super30_Report_${currentPlayer?.name.replace(/\s+/g, '_')}.txt`}
-                  className="w-full py-2 bg-slate-900 hover:bg-slate-800 text-white font-medium text-xs rounded-lg flex items-center justify-center gap-2 transition cursor-pointer"
-                >
-                  <Download className="h-3.5 w-3.5" />
-                  Download Parents Summary Report
-                </a>
-              </div>
+                  <a
+                    href={`data:text/plain;charset=utf-8,${encodeURIComponent(
+                      `SUPER 30 CRICKET ACADEMY - PARENT COMPLIANCE REPORT\n` +
+                      `Player Name: ${currentPlayer?.name}\n` +
+                      `Parent Name: ${currentPlayer?.parentName}\n` +
+                      `Date: ${new Date().toLocaleDateString()}\n\n` +
+                      `--- COMPLIANCE SUMMARY ---\n` +
+                      `Weekly Drill Practice Rate: 86%\n` +
+                      `Total Drill Reps Completed: 450 reps\n\n` +
+                      `--- DETAILED DRILL PRACTICE HISTORIES ---\n` +
+                      logs.map(log => {
+                        const d = drills.find(dri => dri.id === log.drillId);
+                        return `- [${log.date}] Drill: ${d?.name || log.drillId}\n  Status: VERIFIED BY COACH\n  Player Note: "${log.notes}"\n`;
+                      }).join('\n')
+                    )}`}
+                    download={`Super30_Report_${currentPlayer?.name.replace(/\s+/g, '_')}.txt`}
+                    className="w-full py-2 bg-slate-900 hover:bg-slate-800 text-white font-medium text-xs rounded-lg flex items-center justify-center gap-2 transition cursor-pointer"
+                  >
+                    <Download className="h-3.5 w-3.5" />
+                    Download Parents Summary Report
+                  </a>
+                </div>
+              ) : (
+                <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm space-y-3">
+                  <h3 className="text-base font-bold text-slate-800">My Daily Checklist</h3>
+                  <p className="text-xs text-slate-600">Practice your assigned drills daily. Focus on holding correct technical posture during each repetition.</p>
+                  <div className="p-3.5 bg-indigo-50/60 rounded-xl border border-indigo-100 flex items-center gap-3">
+                    <Dumbbell className="h-5 w-5 text-indigo-600 shrink-0" />
+                    <div className="text-xs text-indigo-900">
+                      <p className="font-semibold">Keep it up!</p>
+                      <p className="opacity-90">Record your practice sessions and submit logs to get coach reviews.</p>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -346,57 +369,70 @@ export const PlayerPractice: React.FC<PlayerPracticeProps> = ({
         {activeTab === 'logs' && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             {/* Form to submit daily log */}
-            <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm space-y-4">
-              <h3 className="text-base font-bold text-slate-800 border-b border-slate-100 pb-2">Log Daily Home Practice</h3>
-              <form onSubmit={handleAddPracticeLog} className="space-y-4">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">Drill Practiced</label>
-                  <select
-                    value={selectedDrillId}
-                    onChange={(e) => setSelectedDrillId(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-200 bg-slate-50 text-xs rounded-lg focus:outline-none"
+            {user?.role === 'player' ? (
+              <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm space-y-4">
+                <h3 className="text-base font-bold text-slate-800 border-b border-slate-100 pb-2">Log Daily Home Practice</h3>
+                <form onSubmit={handleAddPracticeLog} className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">Drill Practiced</label>
+                    <select
+                      value={selectedDrillId}
+                      onChange={(e) => setSelectedDrillId(e.target.value)}
+                      className="w-full px-3 py-2 border border-slate-200 bg-slate-50 text-xs rounded-lg focus:outline-none"
+                    >
+                      {drills.map(d => (
+                        <option key={d.id} value={d.id}>{d.name} ({d.category})</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">Upload Practice Video Clip (Mock)</label>
+                    <select
+                      value={logVideo}
+                      onChange={(e) => setLogVideo(e.target.value)}
+                      className="w-full px-3 py-2 border border-slate-200 bg-slate-50 text-xs rounded-lg focus:outline-none"
+                    >
+                      <option value="practice_coverdrive_day1.mp4">practice_coverdrive_day1.mp4</option>
+                      <option value="bowling_release_reps.mp4">bowling_release_reps.mp4</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">Your Performance Notes / Reps</label>
+                    <textarea
+                      required
+                      rows={3}
+                      value={logNotes}
+                      onChange={(e) => setLogNotes(e.target.value)}
+                      placeholder="e.g. Completed 30 full reps. Front shoulder is locked, focused on holding the balance pose at finish..."
+                      className="w-full px-3 py-2 border border-slate-200 text-xs rounded-lg focus:outline-none focus:border-indigo-500"
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={logSaved}
+                    className={`w-full py-2 rounded-lg text-xs font-semibold text-white transition ${
+                      logSaved ? 'bg-emerald-500' : 'bg-slate-900 hover:bg-slate-800'
+                    }`}
                   >
-                    {drills.map(d => (
-                      <option key={d.id} value={d.id}>{d.name} ({d.category})</option>
-                    ))}
-                  </select>
+                    {logSaved ? 'Practice Session Logged!' : 'Submit Daily Practice'}
+                  </button>
+                </form>
+              </div>
+            ) : (
+              <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm space-y-4 h-max">
+                <h3 className="text-base font-bold text-slate-800 border-b border-slate-100 pb-2">Parent View Only</h3>
+                <div className="bg-indigo-50/50 border border-indigo-155 p-4 rounded-xl space-y-2">
+                  <CheckCircle className="h-5 w-5 text-indigo-600" />
+                  <p className="text-xs font-bold text-indigo-900">Practice Log Viewer</p>
+                  <p className="text-xs text-slate-600 leading-relaxed">
+                    This lists the training sessions and drills logged by your child. Only the student can log a daily practice session from their device.
+                  </p>
                 </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">Upload Practice Video Clip (Mock)</label>
-                  <select
-                    value={logVideo}
-                    onChange={(e) => setLogVideo(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-200 bg-slate-50 text-xs rounded-lg focus:outline-none"
-                  >
-                    <option value="practice_coverdrive_day1.mp4">practice_coverdrive_day1.mp4</option>
-                    <option value="bowling_release_reps.mp4">bowling_release_reps.mp4</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">Your Performance Notes / Reps</label>
-                  <textarea
-                    required
-                    rows={3}
-                    value={logNotes}
-                    onChange={(e) => setLogNotes(e.target.value)}
-                    placeholder="e.g. Completed 30 full reps. Front shoulder is locked, focused on holding the balance pose at finish..."
-                    className="w-full px-3 py-2 border border-slate-200 text-xs rounded-lg focus:outline-none focus:border-indigo-500"
-                  />
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={logSaved}
-                  className={`w-full py-2 rounded-lg text-xs font-semibold text-white transition ${
-                    logSaved ? 'bg-emerald-500' : 'bg-slate-900 hover:bg-slate-800'
-                  }`}
-                >
-                  {logSaved ? 'Practice Session Logged!' : 'Submit Daily Practice'}
-                </button>
-              </form>
-            </div>
+              </div>
+            )}
 
             {/* Historic logs List */}
             <div className="lg:col-span-2 space-y-4">
