@@ -24,6 +24,7 @@ import {
   BookOpen,
   X
 } from 'lucide-react';
+import { jsPDF } from 'jspdf';
 import { motion } from 'motion/react';
 import { uploadVideo } from '../lib/api';
 
@@ -88,6 +89,15 @@ export const PlayerPractice: React.FC<PlayerPracticeProps> = ({
   // Player's assigned sessions and drills
   const currentPlayerSessions = sessions.filter(s => s.playerId === selectedPlayerId);
   const currentPlayerFixed = fixedReferences.filter(fr => fr.playerId === selectedPlayerId);
+
+  // --- PARENT INSIGHTS CALCULATIONS ---
+  const currentMonth = new Date().toISOString().slice(0, 7); // e.g., "2026-07"
+  const logsThisMonth = logs.filter(l => l.date.startsWith(currentMonth));
+  const targetMonthlyLogs = 20; // Assume 20 practice days a month as target
+  const complianceRate = Math.min(Math.round((logsThisMonth.length / targetMonthlyLogs) * 100), 100);
+  
+  const pendingQuestions = questions.filter(q => q.status === 'Pending').length;
+  const answeredQuestions = questions.filter(q => q.status === 'Answered').length;
 
   const handleFileUpload = async (file: File) => {
     setUploadError('');
@@ -178,6 +188,62 @@ export const PlayerPractice: React.FC<PlayerPracticeProps> = ({
     setInlineQuestionText('');
   };
 
+  const handleDownloadPDF = () => {
+    const doc = new jsPDF();
+    
+    // 1. Header Section
+    doc.setFontSize(16);
+    doc.setFont("helvetica", "bold");
+    doc.text("SUPER 30 CRICKET ACADEMY", 105, 20, { align: "center" });
+    
+    doc.setFontSize(12);
+    doc.setFont("helvetica", "normal");
+    doc.text("PARENT COMPLIANCE & PROGRESS REPORT", 105, 28, { align: "center" });
+    
+    // Line separator
+    doc.setLineWidth(0.5);
+    doc.line(20, 35, 190, 35);
+    
+    // 2. Player Details
+    doc.setFontSize(11);
+    doc.setFont("helvetica", "bold");
+    doc.text("Player Details:", 20, 45);
+    doc.setFont("helvetica", "normal");
+    doc.text(`Name: ${currentPlayer?.name || 'N/A'}`, 20, 52);
+    doc.text(`Parent: ${currentPlayer?.parentName || 'N/A'}`, 20, 59);
+    doc.text(`Date: ${new Date().toLocaleDateString()}`, 20, 66);
+    
+    // 3. Compliance Summary
+    doc.setFont("helvetica", "bold");
+    doc.text("Monthly Progress Summary:", 20, 80);
+    doc.setFont("helvetica", "normal");
+    doc.text(`Monthly Compliance Rate: ${complianceRate}%`, 20, 87);
+    doc.text(`Sessions Logged This Month: ${logsThisMonth.length} / ${targetMonthlyLogs}`, 20, 94);
+    
+    // 4. Resolved Issues Showcase
+    doc.setFont("helvetica", "bold");
+    doc.text("Recently Resolved Technical Flaws:", 20, 108);
+    doc.setFont("helvetica", "normal");
+    
+    let yPos = 115;
+    if (currentPlayerFixed && currentPlayerFixed.length > 0) {
+      currentPlayerFixed.slice(0, 5).forEach((fixed, index) => {
+        doc.text(`${index + 1}. [${fixed.techniqueCategory}] ${fixed.issueDescription}`, 20, yPos);
+        doc.setTextColor(100, 100, 100); // Gray text for date
+        doc.setFontSize(9);
+        doc.text(`Resolved on: ${fixed.fixedDate}`, 25, yPos + 5);
+        doc.setTextColor(0, 0, 0); // Reset to black
+        doc.setFontSize(11);
+        yPos += 12;
+      });
+    } else {
+      doc.text("No technical flaws marked as resolved this month.", 20, yPos);
+    }
+    
+    // 5. Save the PDF file
+    doc.save(`Super30_Report_${currentPlayer?.name?.replace(/\s+/g, '_') || 'Player'}.pdf`);
+  };
+
   return (
     <div className="space-y-6" id="player-practice-section">
       {/* Player Profile Context Selector */}
@@ -211,7 +277,6 @@ export const PlayerPractice: React.FC<PlayerPracticeProps> = ({
             <p className="text-xs text-slate-400">Academy ID: S30-P{currentPlayer?.id.toUpperCase()}</p>
           </div>
         </div>
-
       </div>
 
       {/* Tabs Menu */}
@@ -331,43 +396,37 @@ export const PlayerPractice: React.FC<PlayerPracticeProps> = ({
               {user?.role === 'parent' ? (
                 <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm space-y-4">
                   <div className="flex justify-between items-center">
-                    <h3 className="text-base font-bold text-slate-800">Parents Periodic Report</h3>
-                    <FileText className="h-5 w-5 text-indigo-500" />
+                    <h3 className="text-base font-bold text-slate-800">Monthly Progress</h3>
+                    <TrendingUp className="h-5 w-5 text-indigo-500" />
                   </div>
-                  <p className="text-xs text-slate-600">Download customized periodic performance report of player drill compliance and technical progress.</p>
+                  <p className="text-xs text-slate-600">Overview of {currentPlayer?.name}'s dedication and practice consistency this month.</p>
                   
-                  <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg space-y-2">
-                    <div className="flex justify-between text-xs font-semibold text-slate-700">
-                      <span>Weekly Compliance Rate:</span>
-                      <span className="text-emerald-600">86%</span>
+                  <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg space-y-3">
+                    <div className="flex justify-between text-xs font-bold text-slate-700">
+                      <span>Monthly Practice Goal:</span>
+                      <span className={complianceRate >= 75 ? "text-emerald-600" : "text-amber-600"}>
+                        {complianceRate}%
+                      </span>
                     </div>
-                    <div className="w-full bg-slate-200 rounded-full h-1.5">
-                      <div className="bg-emerald-500 h-1.5 rounded-full" style={{ width: '86%' }} />
+                    <div className="w-full bg-slate-200 rounded-full h-2">
+                      <div 
+                        className={`h-2 rounded-full transition-all duration-500 ${complianceRate >= 75 ? 'bg-emerald-500' : 'bg-amber-500'}`} 
+                        style={{ width: `${complianceRate}%` }} 
+                      />
                     </div>
-                    <p className="text-[10px] text-slate-400">Total Drills Practiced: {logs.length} sessions logged this month.</p>
+                    <div className="flex justify-between text-[10px] text-slate-500 font-medium">
+                      <span>{logsThisMonth.length} Sessions Logged</span>
+                      <span>Target: {targetMonthlyLogs} Sessions</span>
+                    </div>
                   </div>
 
-                  <a
-                    href={`data:text/plain;charset=utf-8,${encodeURIComponent(
-                      `SUPER 30 CRICKET ACADEMY - PARENT COMPLIANCE REPORT\n` +
-                      `Player Name: ${currentPlayer?.name}\n` +
-                      `Parent Name: ${currentPlayer?.parentName}\n` +
-                      `Date: ${new Date().toLocaleDateString()}\n\n` +
-                      `--- COMPLIANCE SUMMARY ---\n` +
-                      `Weekly Drill Practice Rate: 86%\n` +
-                      `Total Drill Reps Completed: 450 reps\n\n` +
-                      `--- DETAILED DRILL PRACTICE HISTORIES ---\n` +
-                      logs.map(log => {
-                        const d = drills.find(dri => dri.id === log.drillId);
-                        return `- [${log.date}] Drill: ${d?.name || log.drillId}\n  Status: VERIFIED BY COACH\n  Player Note: "${log.notes}"\n`;
-                      }).join('\n')
-                    )}`}
-                    download={`Super30_Report_${currentPlayer?.name.replace(/\s+/g, '_')}.txt`}
-                    className="w-full py-2 bg-slate-900 hover:bg-slate-800 text-white font-medium text-xs rounded-lg flex items-center justify-center gap-2 transition cursor-pointer"
-                  >
-                    <Download className="h-3.5 w-3.5" />
-                    Download Parents Summary Report
-                  </a>
+                  <button
+  onClick={handleDownloadPDF}
+  className="w-full py-2 bg-slate-900 hover:bg-slate-800 text-white font-medium text-xs rounded-lg flex items-center justify-center gap-2 transition cursor-pointer"
+>
+  <Download className="h-3.5 w-3.5" />
+  Download PDF Report
+</button>
                 </div>
               ) : (
                 <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm space-y-3">
@@ -526,14 +585,55 @@ export const PlayerPractice: React.FC<PlayerPracticeProps> = ({
                 </form>
               </div>
             ) : (
-              <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm space-y-4 h-max">
-                <h3 className="text-base font-bold text-slate-800 border-b border-slate-100 pb-2">Parent View Only</h3>
-                <div className="bg-indigo-50/50 border border-indigo-155 p-4 rounded-xl space-y-2">
-                  <CheckCircle className="h-5 w-5 text-indigo-600" />
-                  <p className="text-xs font-bold text-indigo-900">Practice Log Viewer</p>
-                  <p className="text-xs text-slate-600 leading-relaxed">
-                    This lists the training sessions and drills logged by your child. Only the student can log a daily practice session from their device.
-                  </p>
+              <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden h-max">
+                <div className="bg-slate-900 p-4">
+                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                    <Sparkles className="h-4 w-4 text-amber-400" />
+                    Player Engagement Insights
+                  </h3>
+                  <p className="text-[11px] text-slate-300 mt-1">Track how {currentPlayer?.name} is interacting with the coaching staff.</p>
+                </div>
+                
+                <div className="p-5 space-y-5">
+                  {/* Q&A Stats */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="p-3 bg-emerald-50 border border-emerald-100 rounded-lg text-center">
+                      <span className="block text-xl font-bold text-emerald-700">{answeredQuestions}</span>
+                      <span className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider">Coach Responses</span>
+                    </div>
+                    <div className="p-3 bg-amber-50 border border-amber-100 rounded-lg text-center">
+                      <span className="block text-xl font-bold text-amber-700">{pendingQuestions}</span>
+                      <span className="text-[10px] font-bold text-amber-800 uppercase tracking-wider">Pending Questions</span>
+                    </div>
+                  </div>
+
+                  {/* Fixed Issues Showcase (Outcomes) */}
+                  {currentPlayerFixed && currentPlayerFixed.length > 0 && (
+                    <div className="space-y-3">
+                      <h4 className="text-xs font-bold text-slate-800 uppercase border-b border-slate-100 pb-1">Resolved Technical Flaws</h4>
+                      <div className="space-y-2">
+                        {currentPlayerFixed.slice(0, 3).map((fixed) => (
+                          <div key={fixed.id} className="flex items-start gap-2 bg-slate-50 p-2.5 rounded-lg border border-slate-200">
+                            <CheckCircle className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" />
+                            <div>
+                              <p className="text-xs font-semibold text-slate-800">
+                                <span className="text-indigo-600 mr-1">[{fixed.techniqueCategory}]</span>
+                                {fixed.issueDescription}
+                              </p>
+                              <p className="text-[10px] text-slate-500 line-clamp-1">Resolved on {fixed.fixedDate}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {(!currentPlayerFixed || currentPlayerFixed.length === 0) && (
+                    <div className="p-3 bg-slate-50 border border-slate-100 rounded-lg text-center">
+                      <Activity className="h-5 w-5 text-slate-400 mx-auto mb-1" />
+                      <p className="text-[10px] text-slate-500">No technical flaws marked as fully resolved yet. Keep encouraging daily practice!</p>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
