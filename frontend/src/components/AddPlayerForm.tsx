@@ -20,7 +20,7 @@ export function AddPlayerForm({ onPlayerAdded }: Props) {
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [created, setCreated] = useState<{ player: Player; defaultPassword: string } | null>(null);
+  const [created, setCreated] = useState<{ player: Player; defaultPassword: string; defaultPlayerPassword?: string } | null>(null);
   const [copied, setCopied] = useState(false);
 
   const reset = () => {
@@ -42,8 +42,8 @@ export function AddPlayerForm({ onPlayerAdded }: Props) {
     try {
       const result = await api.players.create({ name: name.trim(), age: ageNum, role, parentName: parentName.trim(), parentEmail: parentEmail.trim().toLowerCase(), avatar });
       if (result) {
-        const { defaultPassword, ...player } = result;
-        setCreated({ player, defaultPassword });
+        const { defaultPassword, defaultPlayerPassword, ...player } = result;
+        setCreated({ player, defaultPassword, defaultPlayerPassword });
         onPlayerAdded(player);
       }
     } catch (err: any) {
@@ -55,7 +55,14 @@ export function AddPlayerForm({ onPlayerAdded }: Props) {
 
   const copyCredentials = () => {
     if (!created) return;
-    const text = `Super 30 Cricket Academy — Player Login\nPlayer: ${created.player.name}\nParent Email: ${created.player.parentEmail}\nPassword: ${created.defaultPassword}\n\nLogin at the academy portal using the Parent / Player tab.`;
+    const text = `Super 30 Cricket Academy Credentials\n\n` +
+      `PLAYER ACCOUNT:\n` +
+      `Email: ${created.player.email}\n` +
+      `Password: ${created.defaultPlayerPassword || 'Player@123'}\n\n` +
+      `PARENT ACCOUNT:\n` +
+      `Email: ${created.player.parentEmail}\n` +
+      `Password: ${created.defaultPassword}\n\n` +
+      `Login at the academy portal using the Player or Parent tabs accordingly.`;
     navigator.clipboard.writeText(text).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2500);
@@ -75,18 +82,32 @@ export function AddPlayerForm({ onPlayerAdded }: Props) {
           </div>
         </div>
 
-        <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 space-y-2 text-sm font-mono mb-4">
-          <div className="flex justify-between">
-            <span className="text-slate-500">Player</span>
+        <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 space-y-3 text-sm font-mono mb-4">
+          <div className="flex justify-between border-b border-slate-150 pb-1.5">
+            <span className="text-slate-500 font-sans font-semibold">Player</span>
             <span className="font-semibold text-slate-800">{created.player.avatar} {created.player.name}</span>
           </div>
-          <div className="flex justify-between">
-            <span className="text-slate-500">Parent Email</span>
-            <span className="font-semibold text-slate-800">{created.player.parentEmail}</span>
+          <div>
+            <p className="text-[10px] font-extrabold text-slate-400 font-sans uppercase mb-1 tracking-wider">Student Account</p>
+            <div className="flex justify-between pl-2">
+              <span className="text-slate-500">Email</span>
+              <span className="font-semibold text-slate-800">{created.player.email}</span>
+            </div>
+            <div className="flex justify-between pl-2">
+              <span className="text-slate-500">Password</span>
+              <span className="font-semibold text-indigo-700">{created.defaultPlayerPassword || 'Player@123'}</span>
+            </div>
           </div>
-          <div className="flex justify-between">
-            <span className="text-slate-500">Password</span>
-            <span className="font-semibold text-emerald-700">{created.defaultPassword}</span>
+          <div>
+            <p className="text-[10px] font-extrabold text-slate-400 font-sans uppercase mb-1 tracking-wider">Parent Account</p>
+            <div className="flex justify-between pl-2">
+              <span className="text-slate-500">Email</span>
+              <span className="font-semibold text-slate-800">{created.player.parentEmail}</span>
+            </div>
+            <div className="flex justify-between pl-2">
+              <span className="text-slate-500">Password</span>
+              <span className="font-semibold text-emerald-700">{created.defaultPassword}</span>
+            </div>
           </div>
         </div>
 

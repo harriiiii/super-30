@@ -1,6 +1,7 @@
 export interface Player {
   id: string;
   name: string;
+  email?: string;
   parentName: string;
   parentEmail: string;
   age: number;

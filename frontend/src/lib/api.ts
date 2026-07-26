@@ -37,7 +37,7 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 }
 
 export interface AuthUser {
-  role: 'coach' | 'player';
+  role: 'coach' | 'player' | 'parent';
   id: string;
   name: string;
   email: string;
@@ -108,7 +108,7 @@ export const api = {
   players: {
     list: () => request<Player[]>('/players'),
     create: (data: Omit<Player, 'id'>) =>
-      request<Player & { defaultPassword: string }>('/players', { method: 'POST', body: JSON.stringify(data) }),
+      request<Player & { defaultPassword: string; defaultPlayerPassword: string }>('/players', { method: 'POST', body: JSON.stringify(data) }),
   },
   drills: {
     list: () => request<Drill[]>('/drills'),

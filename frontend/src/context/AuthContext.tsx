@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 
 export interface AuthUser {
-  role: 'coach' | 'player';
+  role: 'coach' | 'player' | 'parent';
   id: string;
   name: string;
   email: string;

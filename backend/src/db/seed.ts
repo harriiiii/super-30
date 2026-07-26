@@ -14,6 +14,7 @@ import {
   players,
   practiceLogs,
   questions,
+  parents,
 } from './schema.js';
 
 // Seed default coach
@@ -22,14 +23,23 @@ await db.insert(coaches).values([
   { id: 'coach1', name: 'Head Coach', email: 'coach@super30.com', passwordHash: coachHash },
 ]).onConflictDoNothing();
 
-// Seed players — use onConflictDoUpdate to set passwordHash even for existing rows
+// Seed players and parents
+const playerHash = await bcrypt.hash('Player@123', 10);
 const parentHash = await bcrypt.hash('Parent@123', 10);
+
 await db.insert(players).values([
-  { id: 'p1', name: 'Aarav Patel', parentName: 'Sanjay Patel', parentEmail: 'sanjay.patel@example.com', age: 14, role: 'Batsman', avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=120', passwordHash: parentHash },
-  { id: 'p2', name: 'Kabir Singh', parentName: 'Jaspreet Singh', parentEmail: 'jaspreet.singh@example.com', age: 15, role: 'Bowler', avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=120', passwordHash: parentHash },
-  { id: 'p3', name: 'Rohan Deshmukh', parentName: 'Milind Deshmukh', parentEmail: 'milind.deshmukh@example.com', age: 13, role: 'All-Rounder', avatar: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&q=80&w=120', passwordHash: parentHash },
-  { id: 'p4', name: 'Vihaan Nair', parentName: 'Girish Nair', parentEmail: 'girish.nair@example.com', age: 16, role: 'Wicketkeeper', avatar: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&q=80&w=120', passwordHash: parentHash },
-]).onConflictDoUpdate({ target: players.id, set: { passwordHash: parentHash } });
+  { id: 'p1', name: 'Aarav Patel', email: 'aarav@super30.com', parentName: 'Sanjay Patel', parentEmail: 'sanjay.patel@example.com', age: 14, role: 'Batsman', avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=120', passwordHash: playerHash },
+  { id: 'p2', name: 'Kabir Singh', email: 'kabir@super30.com', parentName: 'Jaspreet Singh', parentEmail: 'jaspreet.singh@example.com', age: 15, role: 'Bowler', avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=120', passwordHash: playerHash },
+  { id: 'p3', name: 'Rohan Deshmukh', email: 'rohan@super30.com', parentName: 'Milind Deshmukh', parentEmail: 'milind.deshmukh@example.com', age: 13, role: 'All-Rounder', avatar: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&q=80&w=120', passwordHash: playerHash },
+  { id: 'p4', name: 'Vihaan Nair', email: 'vihaan@super30.com', parentName: 'Girish Nair', parentEmail: 'girish.nair@example.com', age: 16, role: 'Wicketkeeper', avatar: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&q=80&w=120', passwordHash: playerHash },
+]).onConflictDoUpdate({ target: players.id, set: { email: 'aarav@super30.com', passwordHash: playerHash } });
+
+await db.insert(parents).values([
+  { id: 'parent1', playerId: 'p1', name: 'Sanjay Patel', email: 'sanjay.patel@example.com', passwordHash: parentHash },
+  { id: 'parent2', playerId: 'p2', name: 'Jaspreet Singh', email: 'jaspreet.singh@example.com', passwordHash: parentHash },
+  { id: 'parent3', playerId: 'p3', name: 'Milind Deshmukh', email: 'milind.deshmukh@example.com', passwordHash: parentHash },
+  { id: 'parent4', playerId: 'p4', name: 'Girish Nair', email: 'girish.nair@example.com', passwordHash: parentHash },
+]).onConflictDoNothing();
 
 await db.insert(drills).values([
   { id: 'd1', name: 'Cover Drive Footwork Drill', category: 'Batting', description: 'Place 3 cones in a semi-circle. Take step out, planting front foot beside cone, and execute mock cover drive holding high elbow finish for 3 seconds. Repeat 30 times.', youtubeUrl: 'https://www.youtube.com/watch?v=D-ZpS0fVq-E' },

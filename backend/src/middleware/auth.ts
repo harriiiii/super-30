@@ -2,7 +2,7 @@ import type { NextFunction, Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
 
 export interface AuthPayload {
-  role: 'coach' | 'player';
+  role: 'coach' | 'player' | 'parent';
   id: string;
   name: string;
   email: string;
