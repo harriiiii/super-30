@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { Player, Drill, CoachSessionInput, VoiceNote, FixedReference } from '../types';
+import { Player, Drill, CoachSessionInput, VoiceNote, FixedReference, PlayerPracticeQuestion } from '../types';
 import { Video, Mic, Plus, Trash2, Send, Check, User, Sparkles, MessageSquare, RefreshCw, UploadCloud, X, Film, Link, AlertTriangle } from 'lucide-react';
 import { motion } from 'motion/react';
 import { uploadVideo } from '../lib/api';
@@ -8,10 +8,12 @@ interface DailySessionInputsProps {
   players: Player[];
   drills: Drill[];
   sessions: CoachSessionInput[];
+  questions: PlayerPracticeQuestion[];
+  onAnswerQuestion: (id: string, response: string, markFixed?: boolean) => void;
   onAddSession: (session: CoachSessionInput) => void;
 }
 
-export const DailySessionInputs: React.FC<DailySessionInputsProps> = ({ players, drills, sessions, onAddSession }) => {
+export const DailySessionInputs: React.FC<DailySessionInputsProps> = ({ players, drills, sessions, questions, onAnswerQuestion, onAddSession }) => {
   const [selectedPlayerId, setSelectedPlayerId] = useState(players[0]?.id || '');
   const [videoName, setVideoName] = useState('');
   const [videoUrl, setVideoUrl] = useState('');
@@ -87,6 +89,17 @@ export const DailySessionInputs: React.FC<DailySessionInputsProps> = ({ players,
   const [selectedDrillIds, setSelectedDrillIds] = useState<string[]>([]);
   const [durationDays, setDurationDays] = useState(7);
   const [coachComments, setCoachComments] = useState('');
+
+  // Answering questions state
+  const [answeringQId, setAnsweringQId] = useState<string | null>(null);
+  const [responseText, setResponseText] = useState('');
+
+  const handleAnswerQuestionSubmit = (qId: string) => {
+    if (!responseText.trim()) return;
+    onAnswerQuestion(qId, responseText.trim(), false);
+    setResponseText('');
+    setAnsweringQId(null);
+  };
 
   // Review states
   const [otherCoachReview, setOtherCoachReview] = useState(false);
@@ -662,6 +675,83 @@ export const DailySessionInputs: React.FC<DailySessionInputsProps> = ({ players,
                 )}
               </button>
             </div>
+          </div>
+
+          {/* Section 5: Athlete Help Requests & Q&A */}
+          <div className="bg-white rounded-xl p-6 border border-slate-200 shadow-sm space-y-4">
+            <h3 className="text-base font-semibold text-slate-800 flex items-center gap-2 pb-2 border-b border-slate-100">
+              <MessageSquare className="h-5 w-5 text-rose-500" />
+              5. Athlete Technical Questions ({questions.filter(q => q.status === 'Pending').length} Pending)
+            </h3>
+
+            {questions.length > 0 ? (
+              <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
+                {questions.map((q) => (
+                  <div key={q.id} className="p-3.5 bg-slate-50 border border-slate-200 rounded-lg space-y-2 text-xs">
+                    <div className="flex justify-between items-center text-[10px] font-bold text-slate-400">
+                      <span>Date: {q.date}</span>
+                      <span className={`px-1.5 py-0.5 rounded uppercase font-sans ${
+                        q.status === 'Answered' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800 animate-pulse'
+                      }`}>{q.status}</span>
+                    </div>
+
+                    <div>
+                      <span className="font-semibold text-slate-500 uppercase text-[9px] tracking-wider block">Question:</span>
+                      <p className="text-slate-800 font-medium mt-0.5 italic">"{q.questionText}"</p>
+                    </div>
+
+                    {q.status === 'Answered' ? (
+                      <div className="p-2.5 bg-emerald-50 border border-emerald-150 rounded text-emerald-950 font-serif">
+                        <span className="text-[9px] uppercase font-bold tracking-wider text-emerald-800 block font-sans mb-0.5">Your Response:</span>
+                        "{q.coachResponse}"
+                      </div>
+                    ) : (
+                      <div className="pt-2 border-t border-slate-200">
+                        {answeringQId === q.id ? (
+                          <div className="space-y-2">
+                            <textarea
+                              rows={2}
+                              value={responseText}
+                              onChange={(e) => setResponseText(e.target.value)}
+                              placeholder="Write technical advice..."
+                              className="w-full px-2 py-1.5 border border-slate-200 rounded text-xs focus:outline-none focus:border-indigo-500"
+                            />
+                            <div className="flex gap-2 justify-end">
+                              <button
+                                type="button"
+                                onClick={() => { setAnsweringQId(null); setResponseText(''); }}
+                                className="px-2 py-1 bg-slate-100 text-slate-600 rounded hover:bg-slate-200 transition font-semibold"
+                              >
+                                Cancel
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleAnswerQuestionSubmit(q.id)}
+                                className="px-2.5 py-1 bg-emerald-600 text-white rounded hover:bg-emerald-700 transition font-semibold"
+                              >
+                                Submit Answer
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => { setAnsweringQId(q.id); setResponseText(''); }}
+                            className="w-full py-1.5 bg-slate-900 hover:bg-slate-800 text-white text-center font-bold rounded transition"
+                          >
+                            Answer Help Call
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="py-4 text-center bg-slate-50 border border-dashed border-slate-200 rounded-lg text-xs text-slate-500">
+                No technical questions submitted by athletes.
+              </div>
+            )}
           </div>
 
         </div>

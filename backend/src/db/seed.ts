@@ -15,7 +15,24 @@ import {
   practiceLogs,
   questions,
   parents,
+  fieldPresets,
+  shotPresets,
 } from './schema.js';
+
+console.log('Cleaning up existing database data...');
+await db.delete(parents);
+await db.delete(players);
+await db.delete(coaches);
+await db.delete(drills);
+await db.delete(coachSessions);
+await db.delete(practiceLogs);
+await db.delete(questions);
+await db.delete(fixedReferences);
+await db.delete(matchPerformances);
+await db.delete(autoCoachReports);
+await db.delete(fieldPresets);
+await db.delete(shotPresets);
+console.log('Clean up complete.');
 
 // Seed default coach
 const coachHash = await bcrypt.hash('Coach@123', 10);

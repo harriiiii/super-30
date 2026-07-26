@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Player, Drill, CoachSessionInput, PracticeLog, PlayerPracticeQuestion, FixedReference } from '../types';
 import { 
@@ -18,9 +18,11 @@ import {
   Plus, 
   ArrowRight,
   Eye,
-  Activity
+  Activity,
+  X
 } from 'lucide-react';
 import { motion } from 'motion/react';
+import { uploadVideo } from '../lib/api';
 
 interface PlayerPracticeProps {
   players: Player[];
@@ -54,30 +56,27 @@ export const PlayerPractice: React.FC<PlayerPracticeProps> = ({
 }) => {
   const { user } = useAuth();
   const selectedPlayerId = user?.playerId ?? players[0]?.id ?? '';
-  const [activeTab, setActiveTab] = useState<'assigned' | 'logs' | 'seek-inputs' | 'fixed-vault'>('assigned');
+  const [activeTab, setActiveTab] = useState<'assigned' | 'logs'>('assigned');
 
-  // New log form state
+  // New log form state & file upload
   const [selectedDrillId, setSelectedDrillId] = useState(drills[0]?.id || '');
   const [logNotes, setLogNotes] = useState('');
-  const [logVideo, setLogVideo] = useState('My_Drill_Practice_Day2.mp4');
   const [logSaved, setLogSaved] = useState(false);
 
-  // New question form state
-  const [questionText, setQuestionText] = useState('');
-  const [questionVideo, setQuestionVideo] = useState('My_Practice_Fault_Help.mp4');
-  const [questionSaved, setQuestionSaved] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [videoUrl, setVideoUrl] = useState('');
+  const [videoName, setVideoName] = useState('');
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
+  const [uploadError, setUploadError] = useState('');
+  const [isDragging, setIsDragging] = useState(false);
 
-  // Coach Q&A mode state (acting as coach replying to questions)
-  const [answeringQuestionId, setAnsweringQuestionId] = useState<string | null>(null);
-  const [coachAnswerText, setCoachAnswerText] = useState('');
-  const [tagAsFixed, setTagAsFixed] = useState(true);
+  // Inline/Form Question state inside Practice Tracker
+  const [askQuestionChecked, setAskQuestionChecked] = useState(false);
+  const [logQuestionText, setLogQuestionText] = useState('');
 
-  // AI Deviation Alerting Live Playground State
-  const [deviationChecking, setDeviationChecking] = useState(false);
-  const [deviationResult, setDeviationResult] = useState<any>(null);
-  const [currentSessionAssessmentText, setCurrentSessionAssessmentText] = useState(
-    "Aarav had a net run. But during the second set, he dropped his leading elbow down and pop-lofted an outswing ball towards point."
-  );
+  // Inline question ask per log ID in list
+  const [activeQuestionLogId, setActiveQuestionLogId] = useState<string | null>(null);
+  const [inlineQuestionText, setInlineQuestionText] = useState('');
 
   const currentPlayer = players.find(p => p.id === selectedPlayerId);
 
@@ -85,65 +84,93 @@ export const PlayerPractice: React.FC<PlayerPracticeProps> = ({
   const currentPlayerSessions = sessions.filter(s => s.playerId === selectedPlayerId);
   const currentPlayerFixed = fixedReferences.filter(fr => fr.playerId === selectedPlayerId);
 
+  const handleFileUpload = async (file: File) => {
+    setUploadError('');
+    setUploadProgress(0);
+    setVideoName('');
+    setVideoUrl('');
+    try {
+      const result = await uploadVideo(file, pct => setUploadProgress(pct));
+      setVideoUrl(result.url);
+      setVideoName(file.name);
+      setUploadProgress(null);
+    } catch (err: any) {
+      setUploadError(err.message || 'Upload failed');
+      setUploadProgress(null);
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) handleFileUpload(file);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file && file.type.startsWith('video/')) handleFileUpload(file);
+    else setUploadError('Please drop a video file (mp4, mov, webm…)');
+  };
+
+  const clearVideo = () => {
+    setVideoUrl('');
+    setVideoName('');
+    setUploadProgress(null);
+    setUploadError('');
+  };
+
   const handleAddPracticeLog = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedDrillId || !logNotes) return;
 
+    const logId = 'log_' + Date.now();
     const newLog: PracticeLog = {
-      id: 'log_' + Date.now(),
+      id: logId,
       date: new Date().toISOString().split('T')[0],
       drillId: selectedDrillId,
       notes: logNotes,
-      videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-cricket-player-batting-in-slow-motion-32533-large.mp4',
+      videoUrl: videoUrl || undefined,
       verifiedByCoach: false
     };
 
     onAddLog(newLog);
+
+    if (askQuestionChecked && logQuestionText.trim()) {
+      const newQuestion: PlayerPracticeQuestion = {
+        id: 'q_' + logId,
+        date: newLog.date,
+        questionText: logQuestionText.trim(),
+        videoUrl: newLog.videoUrl || 'https://assets.mixkit.co/videos/preview/mixkit-cricket-player-batting-in-slow-motion-32533-large.mp4',
+        status: 'Pending'
+      };
+      onAddQuestion(newQuestion);
+    }
+
     setLogSaved(true);
     setTimeout(() => {
       setLogSaved(false);
       setLogNotes('');
+      setVideoUrl('');
+      setVideoName('');
+      setUploadError('');
+      setAskQuestionChecked(false);
+      setLogQuestionText('');
     }, 1500);
   };
 
-  const handleAddQuestion = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!questionText) return;
-
+  const handleInlineQuestionSubmit = (logId: string, text: string, logVideoUrl?: string) => {
+    if (!text.trim()) return;
     const newQuestion: PlayerPracticeQuestion = {
-      id: 'q_' + Date.now(),
+      id: 'q_' + logId,
       date: new Date().toISOString().split('T')[0],
-      questionText,
-      videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-cricket-player-batting-in-slow-motion-32533-large.mp4',
+      questionText: text.trim(),
+      videoUrl: logVideoUrl || 'https://assets.mixkit.co/videos/preview/mixkit-cricket-player-batting-in-slow-motion-32533-large.mp4',
       status: 'Pending'
     };
-
     onAddQuestion(newQuestion);
-    setQuestionSaved(true);
-    setTimeout(() => {
-      setQuestionSaved(false);
-      setQuestionText('');
-    }, 1500);
-  };
-
-  const handleAnswerSubmit = (qId: string) => {
-    if (!coachAnswerText) return;
-    onAnswerQuestion(qId, coachAnswerText, tagAsFixed);
-    setCoachAnswerText('');
-    setAnsweringQuestionId(null);
-  };
-
-  const handleRunDeviationCheck = async (fixedReferenceIssue: string) => {
-    setDeviationChecking(true);
-    setDeviationResult(null);
-    try {
-      const res = await onTriggerDeviationCheck(fixedReferenceIssue, currentSessionAssessmentText);
-      setDeviationResult(res);
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setDeviationChecking(false);
-    }
+    setActiveQuestionLogId(null);
+    setInlineQuestionText('');
   };
 
   return (
@@ -205,28 +232,6 @@ export const PlayerPractice: React.FC<PlayerPracticeProps> = ({
         >
           <Calendar className="h-4 w-4" />
           Daily Practice Tracker
-        </button>
-        <button
-          onClick={() => setActiveTab('seek-inputs')}
-          className={`px-5 py-3 text-sm font-semibold border-b-2 transition duration-150 flex items-center gap-2 ${
-            activeTab === 'seek-inputs'
-              ? 'border-indigo-600 text-indigo-600'
-              : 'border-transparent text-slate-500 hover:text-slate-800'
-          }`}
-        >
-          <HelpCircle className="h-4 w-4" />
-          Seek Coach Input ({questions.filter(q => q.status === 'Pending').length} Alert)
-        </button>
-        <button
-          onClick={() => setActiveTab('fixed-vault')}
-          className={`px-5 py-3 text-sm font-semibold border-b-2 transition duration-150 flex items-center gap-2 ${
-            activeTab === 'fixed-vault'
-              ? 'border-indigo-600 text-indigo-600'
-              : 'border-transparent text-slate-500 hover:text-slate-800'
-          }`}
-        >
-          <CheckCircle className="h-4 w-4 text-emerald-500" />
-          Fixed Reference Vault ({currentPlayerFixed.length})
         </button>
       </div>
 
@@ -387,15 +392,72 @@ export const PlayerPractice: React.FC<PlayerPracticeProps> = ({
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">Upload Practice Video Clip (Mock)</label>
-                    <select
-                      value={logVideo}
-                      onChange={(e) => setLogVideo(e.target.value)}
-                      className="w-full px-3 py-2 border border-slate-200 bg-slate-50 text-xs rounded-lg focus:outline-none"
-                    >
-                      <option value="practice_coverdrive_day1.mp4">practice_coverdrive_day1.mp4</option>
-                      <option value="bowling_release_reps.mp4">bowling_release_reps.mp4</option>
-                    </select>
+                    <label className="block text-xs font-semibold text-slate-600 uppercase mb-1.5">Practice Video Clip</label>
+
+                    {/* Upload zone */}
+                    {!videoUrl && uploadProgress === null && (
+                      <div>
+                        <div
+                          onDragOver={e => { e.preventDefault(); setIsDragging(true); }}
+                          onDragLeave={() => setIsDragging(false)}
+                          onDrop={handleDrop}
+                          onClick={() => fileInputRef.current?.click()}
+                          className={`border border-dashed rounded-lg p-6 text-center cursor-pointer transition ${
+                            isDragging ? 'border-indigo-500 bg-indigo-50/40' : 'border-slate-350 hover:border-indigo-400 hover:bg-slate-50'
+                          }`}
+                        >
+                          <Upload className="h-6 w-6 text-slate-400 mx-auto mb-1.5 animate-pulse" />
+                          <p className="text-[11px] font-semibold text-slate-600">Drop practice video here or click to browse</p>
+                          <p className="text-[9px] text-slate-400 mt-0.5">MP4, MOV, WebM, AVI</p>
+                          <input
+                            ref={fileInputRef}
+                            type="file"
+                            accept="video/*"
+                            onChange={handleFileChange}
+                            className="hidden"
+                          />
+                        </div>
+                        {uploadError && (
+                          <p className="mt-1.5 text-[11px] text-rose-600 bg-rose-50 border border-rose-200 rounded px-2.5 py-1.5">{uploadError}</p>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Progress bar */}
+                    {uploadProgress !== null && (
+                      <div className="space-y-1.5 bg-slate-50 border border-slate-250 rounded-lg p-3">
+                        <div className="flex items-center justify-between text-[10px] font-semibold text-slate-600">
+                          <span className="flex items-center gap-1.5">
+                            <span className="animate-spin h-3.5 w-3.5 border-2 border-indigo-500 border-t-transparent rounded-full" />
+                            Uploading video...
+                          </span>
+                          <span className="font-mono text-indigo-600">{uploadProgress}%</span>
+                        </div>
+                        <div className="w-full bg-slate-200 rounded-full h-1.5 overflow-hidden">
+                          <div
+                            className="bg-indigo-500 h-1.5 rounded-full transition-all duration-200"
+                            style={{ width: `${uploadProgress}%` }}
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Uploaded state */}
+                    {videoUrl && (
+                      <div className="flex items-center justify-between bg-emerald-50 border border-emerald-250 rounded-lg p-2.5">
+                        <div className="flex items-center gap-2 text-emerald-800 text-xs font-semibold truncate flex-1 mr-2">
+                          <CheckCircle className="h-4 w-4 shrink-0 text-emerald-600" />
+                          <span className="truncate">{videoName || 'Practice Video'}</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={clearVideo}
+                          className="p-1 hover:bg-emerald-100 rounded text-slate-500 hover:text-slate-800 transition"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                    )}
                   </div>
 
                   <div>
@@ -410,11 +472,37 @@ export const PlayerPractice: React.FC<PlayerPracticeProps> = ({
                     />
                   </div>
 
+                  <div className="pt-2 border-t border-slate-100 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        id="ask-coach-checkbox"
+                        checked={askQuestionChecked}
+                        onChange={(e) => setAskQuestionChecked(e.target.checked)}
+                        className="rounded border-slate-350 text-indigo-600 focus:ring-indigo-500"
+                      />
+                      <label htmlFor="ask-coach-checkbox" className="text-xs font-semibold text-slate-700 cursor-pointer">
+                        Ask Coach a question about this session
+                      </label>
+                    </div>
+
+                    {askQuestionChecked && (
+                      <textarea
+                        required
+                        rows={2}
+                        value={logQuestionText}
+                        onChange={(e) => setLogQuestionText(e.target.value)}
+                        placeholder="e.g. Coach, I'm struggling to keep my weight forward on this drill. What should I adjust?"
+                        className="w-full px-3 py-2 border border-slate-205 text-xs rounded-lg focus:outline-none focus:border-indigo-500"
+                      />
+                    )}
+                  </div>
+
                   <button
                     type="submit"
-                    disabled={logSaved}
+                    disabled={logSaved || uploadProgress !== null}
                     className={`w-full py-2 rounded-lg text-xs font-semibold text-white transition ${
-                      logSaved ? 'bg-emerald-500' : 'bg-slate-900 hover:bg-slate-800'
+                      logSaved ? 'bg-emerald-500' : 'bg-slate-900 hover:bg-slate-800 disabled:opacity-50'
                     }`}
                   >
                     {logSaved ? 'Practice Session Logged!' : 'Submit Daily Practice'}
@@ -463,6 +551,77 @@ export const PlayerPractice: React.FC<PlayerPracticeProps> = ({
                               Attached practice video demo reference
                             </div>
                           )}
+
+                          {/* Associated Question & Coach Advice */}
+                          {(() => {
+                            const associatedQ = questions.find(
+                              q => q.id === 'q_' + log.id || (q.videoUrl === log.videoUrl && q.videoUrl)
+                            );
+                            if (associatedQ) {
+                              return (
+                                <div className="mt-3 p-3 bg-slate-50 border border-slate-200 rounded-lg space-y-2 text-xs">
+                                  <div className="flex items-center gap-1 font-semibold text-slate-500 uppercase text-[9px] tracking-wider">
+                                    <HelpCircle className="h-3.5 w-3.5 text-indigo-500" />
+                                    Athlete Question:
+                                  </div>
+                                  <p className="text-slate-700 italic">"{associatedQ.questionText}"</p>
+                                  
+                                  {associatedQ.status === 'Answered' ? (
+                                    <div className="p-2.5 bg-emerald-50 border border-emerald-150 rounded text-emerald-950 font-serif mt-1">
+                                      <span className="text-[9px] uppercase font-bold tracking-wider text-emerald-800 block font-sans mb-0.5">Coach Response:</span>
+                                      "{associatedQ.coachResponse}"
+                                    </div>
+                                  ) : (
+                                    <div className="text-[10px] text-amber-600 font-bold bg-amber-50 px-2 py-0.5 rounded w-max animate-pulse">
+                                      ⏳ Awaiting Coach Response...
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            } else if (user?.role === 'player') {
+                              return (
+                                <div className="mt-2.5">
+                                  {activeQuestionLogId === log.id ? (
+                                    <div className="space-y-2 border-t border-slate-105 pt-2">
+                                      <textarea
+                                        rows={2}
+                                        value={inlineQuestionText}
+                                        onChange={(e) => setInlineQuestionText(e.target.value)}
+                                        placeholder="Ask a question about this session..."
+                                        className="w-full px-3 py-1.5 border border-slate-200 text-xs rounded-lg focus:outline-none focus:border-indigo-500"
+                                      />
+                                      <div className="flex gap-2 justify-end">
+                                        <button
+                                          type="button"
+                                          onClick={() => { setActiveQuestionLogId(null); setInlineQuestionText(''); }}
+                                          className="px-2 py-1 bg-slate-100 text-slate-600 text-xs rounded hover:bg-slate-200 transition font-medium"
+                                        >
+                                          Cancel
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleInlineQuestionSubmit(log.id, inlineQuestionText, log.videoUrl)}
+                                          className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white text-xs rounded transition font-semibold"
+                                        >
+                                          Send Question
+                                        </button>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={() => { setActiveQuestionLogId(log.id); setInlineQuestionText(''); }}
+                                      className="flex items-center gap-1 text-[11px] text-slate-500 hover:text-indigo-600 font-semibold transition mt-2"
+                                    >
+                                      <HelpCircle className="h-3.5 w-3.5" />
+                                      Ask Coach a question about this session
+                                    </button>
+                                  )}
+                                </div>
+                              );
+                            }
+                            return null;
+                          })()}
                         </div>
                       </div>
                     );
@@ -474,267 +633,6 @@ export const PlayerPractice: React.FC<PlayerPracticeProps> = ({
                 )}
               </div>
             </div>
-          </div>
-        )}
-
-        {/* TAB 3: Seek Coach Inputs & Q&A */}
-        {activeTab === 'seek-inputs' && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            {/* Form to submit question */}
-            <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm space-y-4">
-              <h3 className="text-base font-bold text-slate-800 border-b border-slate-100 pb-2">Seek Technical Advice</h3>
-              <form onSubmit={handleAddQuestion} className="space-y-4">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">State Your Technical Issue</label>
-                  <textarea
-                    required
-                    rows={3}
-                    value={questionText}
-                    onChange={(e) => setQuestionText(e.target.value)}
-                    placeholder="e.g. Coach, during my defensive blocks my bat face seems slightly open and I am getting caught on slips. Can you help?"
-                    className="w-full px-3 py-2 border border-slate-200 text-xs rounded-lg focus:outline-none focus:border-indigo-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">Upload Active Practice Clip (Mock)</label>
-                  <select
-                    value={questionVideo}
-                    onChange={(e) => setQuestionVideo(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-200 bg-slate-50 text-xs rounded-lg focus:outline-none"
-                  >
-                    <option value="bat_face_open_defensive.mp4">bat_face_open_defensive.mp4</option>
-                  </select>
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={questionSaved}
-                  className={`w-full py-2 rounded-lg text-xs font-semibold text-white transition ${
-                    questionSaved ? 'bg-emerald-500' : 'bg-slate-900 hover:bg-slate-800'
-                  }`}
-                >
-                  {questionSaved ? 'Question Dispatched!' : 'Submit to Coach'}
-                </button>
-              </form>
-            </div>
-
-            {/* Questions Thread */}
-            <div className="lg:col-span-2 space-y-4">
-              <h3 className="text-base font-bold text-slate-800">Q&A & Correction Dialogues</h3>
-              <div className="space-y-4">
-                {questions.map((q) => (
-                  <div key={q.id} className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm space-y-4">
-                    <div className="flex justify-between items-start">
-                      <div className="flex items-center gap-2">
-                        <span className="text-[10px] bg-slate-100 text-slate-700 px-2 py-0.5 rounded font-mono font-bold">
-                          {q.date}
-                        </span>
-                        <span className="text-xs text-indigo-700 font-bold flex items-center gap-1">
-                          <HelpCircle className="h-3.5 w-3.5" /> Technical Help Needed
-                        </span>
-                      </div>
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${
-                        q.status === 'Answered' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800 animate-pulse'
-                      }`}>
-                        {q.status}
-                      </span>
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <p className="text-xs font-semibold text-slate-500 uppercase tracking-widest">Athlete Question:</p>
-                      <p className="text-sm text-slate-800 font-medium">"{q.questionText}"</p>
-                      <div className="flex items-center gap-1.5 text-xs text-indigo-600 bg-indigo-50/50 p-2 rounded-lg w-max">
-                        <Video className="h-3.5 w-3.5" />
-                        Practice Video: {q.videoUrl.split('/').pop()}
-                      </div>
-                    </div>
-
-                    {/* Coach Response thread */}
-                    {q.status === 'Answered' ? (
-                      <div className="p-4 bg-emerald-50/50 rounded-xl border border-emerald-150 space-y-2 mt-2">
-                        <div className="flex items-center gap-2 text-emerald-800">
-                          <User className="h-4 w-4" />
-                          <span className="text-xs font-bold">Coach Response & Resolution:</span>
-                          {q.isFixed && (
-                            <span className="ml-auto bg-emerald-600 text-white font-bold text-[9px] px-2 py-0.5 rounded flex items-center gap-1">
-                              <CheckCircle className="h-3 w-3" /> Tagged: RESOLVED/FIXED REF VIDEO
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-xs text-slate-700 italic font-medium">"{q.coachResponse}"</p>
-                      </div>
-                    ) : (
-                      <div className="border-t border-slate-100 pt-3">
-                        {answeringQuestionId === q.id ? (
-                          <div className="space-y-3">
-                            <textarea
-                              rows={2}
-                              value={coachAnswerText}
-                              onChange={(e) => setCoachAnswerText(e.target.value)}
-                              placeholder="Write your advice/correction instruction..."
-                              className="w-full px-3 py-2 border border-slate-200 text-xs rounded-lg"
-                            />
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-2">
-                                <input
-                                  type="checkbox"
-                                  id="tag-as-fixed"
-                                  checked={tagAsFixed}
-                                  onChange={(e) => setTagAsFixed(e.target.checked)}
-                                  className="rounded text-emerald-600"
-                                />
-                                <label htmlFor="tag-as-fixed" className="text-xs font-semibold text-slate-700 cursor-pointer">
-                                  Mark Issue as FIXED (Tag as benchmark reference video)
-                                </label>
-                              </div>
-                              <button
-                                type="button"
-                                onClick={() => handleAnswerSubmit(q.id)}
-                                className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs px-3 py-1.5 rounded-lg font-medium transition"
-                              >
-                                Submit Response
-                              </button>
-                            </div>
-                          </div>
-                        ) : (
-                          <button
-                            onClick={() => {
-                              setAnsweringQuestionId(q.id);
-                              setCoachAnswerText('');
-                            }}
-                            className="text-xs bg-slate-900 hover:bg-slate-800 text-white px-3 py-1.5 rounded-lg font-medium transition flex items-center gap-1.5"
-                          >
-                            <User className="h-3.5 w-3.5" /> Answer Question as Coach
-                          </button>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* TAB 4: Fixed Reference Vault & AI Deviation Playground */}
-        {activeTab === 'fixed-vault' && (
-          <div className="space-y-6">
-            <div className="bg-gradient-to-r from-emerald-600 to-teal-700 text-white p-6 rounded-xl shadow-md space-y-2">
-              <h3 className="text-lg font-bold flex items-center gap-2">
-                <CheckCircle className="h-5 w-5" />
-                The Technical Benchmark Vault
-              </h3>
-              <p className="text-sm opacity-90 max-w-2xl">
-                When an issue is fixed, it is cataloged in the Vault. In future sessions, if the player demonstrates regression, the AI system flags it against these benchmark videos to prompt correction drills.
-              </p>
-            </div>
-
-            {currentPlayerFixed.length > 0 ? (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                {/* Fixed Reference list */}
-                <div className="space-y-4">
-                  <h4 className="text-sm font-bold text-slate-800">Active Fixed Benchmarks</h4>
-                  {currentPlayerFixed.map((fr) => (
-                    <div key={fr.id} className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm space-y-3">
-                      <div className="flex justify-between items-center">
-                        <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded border border-emerald-100 flex items-center gap-1">
-                          <CheckCircle className="h-3.5 w-3.5" /> Benchmark Established
-                        </span>
-                        <span className="text-xs font-mono text-slate-400">{fr.fixedDate}</span>
-                      </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                        <div className="sm:col-span-2 space-y-1">
-                          <h5 className="font-bold text-slate-800 text-sm">Issue: {fr.techniqueCategory}</h5>
-                          <p className="text-xs text-slate-600 font-serif italic">"{fr.issueDescription}"</p>
-                        </div>
-                        <div className="bg-slate-100 rounded-lg p-2 flex items-center justify-center text-center">
-                          <div className="space-y-1">
-                            <Video className="h-5 w-5 text-indigo-500 mx-auto" />
-                            <span className="text-[9px] text-slate-500 block leading-tight font-mono">benchmark_ref.mp4</span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                {/* AI Interactive Deviation Playground */}
-                <div className="bg-white rounded-xl border border-indigo-100 p-6 shadow-sm space-y-4">
-                  <div className="flex items-center justify-between border-b border-indigo-50 pb-2">
-                    <h4 className="font-bold text-slate-800 text-sm flex items-center gap-1.5">
-                      <Sparkles className="h-4.5 w-4.5 text-amber-500 animate-pulse" />
-                      Live AI Deviation Checker
-                    </h4>
-                    <span className="text-[10px] bg-indigo-50 text-indigo-700 font-bold px-2 py-0.5 rounded uppercase">Regression Radar</span>
-                  </div>
-                  <p className="text-xs text-slate-500 leading-relaxed">
-                    Test how the AI monitors deviation. Type a player's newest net session report note below, and click verify to see if the AI detects a regression to the vault's fixed benchmark!
-                  </p>
-
-                  <div className="space-y-3">
-                    <div>
-                      <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">New Net Session Comments</label>
-                      <textarea
-                        rows={3}
-                        value={currentSessionAssessmentText}
-                        onChange={(e) => setCurrentSessionAssessmentText(e.target.value)}
-                        className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs bg-slate-50 focus:outline-none focus:border-indigo-500"
-                      />
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() => handleRunDeviationCheck(currentPlayerFixed[0]?.issueDescription || '')}
-                      disabled={deviationChecking || currentPlayerFixed.length === 0}
-                      className="w-full py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 text-white font-semibold text-xs rounded-lg transition flex items-center justify-center gap-1.5"
-                    >
-                      {deviationChecking ? 'Gemini running regression analysis...' : 'Scan New Session notes for Regression'}
-                    </button>
-
-                    {/* AI deviation alert outcomes */}
-                    {deviationResult && (
-                      <motion.div
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className={`p-4 rounded-xl border ${
-                          deviationResult.isDeviated 
-                            ? 'bg-rose-50 border-rose-200 text-rose-900' 
-                            : 'bg-emerald-50 border-emerald-200 text-emerald-900'
-                        } space-y-2`}
-                      >
-                        <div className="flex items-center gap-2">
-                          {deviationResult.isDeviated ? (
-                            <AlertTriangle className="h-5 w-5 text-rose-600 animate-bounce" />
-                          ) : (
-                            <CheckCircle className="h-5 w-5 text-emerald-600" />
-                          )}
-                          <span className="text-xs font-bold uppercase tracking-wider">
-                            {deviationResult.isDeviated ? 'Critical Deviation Warning!' : 'Alignment Confirmed'}
-                          </span>
-                          <span className={`ml-auto text-[10px] font-bold px-2 py-0.5 rounded ${
-                            deviationResult.isDeviated ? 'bg-rose-200/50' : 'bg-emerald-200/50'
-                          }`}>
-                            Similarity: {deviationResult.matchConfidencePercent}%
-                          </span>
-                        </div>
-                        <p className="text-xs font-semibold leading-relaxed">
-                          {deviationResult.warningMessage}
-                        </p>
-                        <div className="pt-2 border-t border-rose-100/60 text-xs">
-                          <strong className="block text-[10px] uppercase font-bold text-slate-500">Recommended Next Steps:</strong>
-                          <p className="mt-0.5">{deviationResult.suggestedRemedy}</p>
-                        </div>
-                      </motion.div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="py-12 text-center bg-white border border-slate-200 rounded-xl">
-                <p className="text-slate-500 text-sm">Create a fixed benchmark first by answering a Player question and checking "Mark issue as FIXED".</p>
-              </div>
-            )}
           </div>
         )}
 
