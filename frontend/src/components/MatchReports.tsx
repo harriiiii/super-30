@@ -22,6 +22,9 @@ export const MatchReports: React.FC<MatchReportsProps> = ({ players, drills, mat
   const [observerNotes, setObserverNotes] = useState(
     "Aarav got off to a quick start scoring 38. Handled spin elegantly. But played cover drives far away from body against fast bowler outside off stump, dropping front shoulder. Caught at slips."
   );
+  const [coachFeedback, setCoachFeedback] = useState(
+    "Aarav showed excellent intent and footwork against spin today! We need to focus on keeping the front foot anchored and elbows high when playing drives outside off-stump."
+  );
 
   const [analyzing, setAnalyzing] = useState(false);
   const [reportSaved, setReportSaved] = useState(false);
@@ -59,6 +62,7 @@ export const MatchReports: React.FC<MatchReportsProps> = ({ players, drills, mat
         runsConceded: currentRole === 'Bowler' || currentRole === 'All-Rounder' ? runsConceded : undefined,
         oversBowled: currentRole === 'Bowler' || currentRole === 'All-Rounder' ? oversBowled : undefined,
         observerNotes,
+        coachFeedback: coachFeedback.trim() || undefined,
         aiReport: {
           strengths: data.strengths || [],
           technicalIssues: data.technicalIssues || [],
@@ -78,6 +82,7 @@ export const MatchReports: React.FC<MatchReportsProps> = ({ players, drills, mat
         setRunsConceded(0);
         setOversBowled(0);
         setObserverNotes('');
+        setCoachFeedback('');
       }, 1500);
     } catch (err) {
       console.error(err);
@@ -183,13 +188,25 @@ export const MatchReports: React.FC<MatchReportsProps> = ({ players, drills, mat
             )}
 
             <div>
-              <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">Coach Observer Field Notes</label>
+              <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">Coach Observer Field Notes (Internal/Coach Only)</label>
               <textarea
                 required
                 rows={3}
                 value={observerNotes}
                 onChange={(e) => setObserverNotes(e.target.value)}
-                placeholder="Write observation notes: stroke selections, bowling speeds, technical flaws noted under match pressure..."
+                placeholder="Write internal notes: stroke selections, bowling speeds, technical flaws noted..."
+                className="w-full px-3 py-2 border border-slate-200 text-xs rounded-lg focus:outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">Feedback for Player & Parent (Visible to them)</label>
+              <textarea
+                required
+                rows={3}
+                value={coachFeedback}
+                onChange={(e) => setCoachFeedback(e.target.value)}
+                placeholder="Write feedback comments visible to the parent/player portal..."
                 className="w-full px-3 py-2 border border-slate-200 text-xs rounded-lg focus:outline-none"
               />
             </div>

@@ -110,7 +110,7 @@ Target category: "${category || 'General'}"`;
 
       const response = await callGeminiWithTimeout(
         ai.models.generateContent({
-          model: 'gemini-2.0-flash',
+          model: 'gemini-3.1-flash-lite-preview',
           contents: prompt,
           config: {
             responseMimeType: 'application/json',
@@ -170,7 +170,7 @@ Provide 2 to 3 structured issues in the list.`;
 
       const response = await callGeminiWithTimeout(
         ai.models.generateContent({
-          model: 'gemini-2.0-flash',
+          model: 'gemini-3.1-flash-lite-preview',
           contents: prompt,
           config: {
             responseMimeType: 'application/json',
@@ -250,7 +250,7 @@ Schema must contain:
 
       const response = await callGeminiWithTimeout(
         ai.models.generateContent({
-          model: 'gemini-2.0-flash',
+          model: 'gemini-3.1-flash-lite-preview',
           contents: prompt,
           config: {
             responseMimeType: 'application/json',
@@ -315,7 +315,7 @@ Respond in JSON with:
 
       const response = await callGeminiWithTimeout(
         ai.models.generateContent({
-          model: 'gemini-2.0-flash',
+          model: 'gemini-3.1-flash-lite-preview',
           contents: prompt,
           config: {
             responseMimeType: 'application/json',

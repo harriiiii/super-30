@@ -93,6 +93,7 @@ export const matchPerformances = pgTable('match_performances', {
   catches: integer('catches'),
   stumpings: integer('stumpings'),
   observerNotes: text('observer_notes').notNull(),
+  coachFeedback: text('coach_feedback'),
   aiReport: jsonb('ai_report'),
   status: varchar('status', { length: 30 }).notNull().default('Observed'),
 });

@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Player, Drill, CoachSessionInput, PracticeLog, PlayerPracticeQuestion, FixedReference } from '../types';
+import { Player, Drill, CoachSessionInput, PracticeLog, PlayerPracticeQuestion, FixedReference, MatchPerformance } from '../types';
 import { 
   Dumbbell, 
   Calendar, 
@@ -19,6 +19,9 @@ import {
   ArrowRight,
   Eye,
   Activity,
+  Award,
+  BarChart2,
+  BookOpen,
   X
 } from 'lucide-react';
 import { motion } from 'motion/react';
@@ -31,6 +34,7 @@ interface PlayerPracticeProps {
   logs: PracticeLog[];
   questions: PlayerPracticeQuestion[];
   fixedReferences: FixedReference[];
+  matches: MatchPerformance[];
   onAddLog: (log: PracticeLog) => void;
   onAddQuestion: (q: PlayerPracticeQuestion) => void;
   onAnswerQuestion: (id: string, response: string, markFixed?: boolean) => void;
@@ -49,6 +53,7 @@ export const PlayerPractice: React.FC<PlayerPracticeProps> = ({
   logs,
   questions,
   fixedReferences,
+  matches,
   onAddLog,
   onAddQuestion,
   onAnswerQuestion,
@@ -56,7 +61,7 @@ export const PlayerPractice: React.FC<PlayerPracticeProps> = ({
 }) => {
   const { user } = useAuth();
   const selectedPlayerId = user?.playerId ?? players[0]?.id ?? '';
-  const [activeTab, setActiveTab] = useState<'assigned' | 'logs'>('assigned');
+  const [activeTab, setActiveTab] = useState<'assigned' | 'logs' | 'matches'>('assigned');
 
   // New log form state & file upload
   const [selectedDrillId, setSelectedDrillId] = useState(drills[0]?.id || '');
@@ -232,6 +237,17 @@ export const PlayerPractice: React.FC<PlayerPracticeProps> = ({
         >
           <Calendar className="h-4 w-4" />
           Daily Practice Tracker
+        </button>
+        <button
+          onClick={() => setActiveTab('matches')}
+          className={`px-5 py-3 text-sm font-semibold border-b-2 transition duration-150 flex items-center gap-2 ${
+            activeTab === 'matches'
+              ? 'border-indigo-600 text-indigo-600'
+              : 'border-transparent text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          <Award className="h-4 w-4" />
+          Match Feedbacks & Stats
         </button>
       </div>
 
@@ -633,6 +649,294 @@ export const PlayerPractice: React.FC<PlayerPracticeProps> = ({
                 )}
               </div>
             </div>
+          </div>
+        )}
+
+        {/* TAB 3: Match Feedbacks & Stats */}
+        {activeTab === 'matches' && (
+          <div className="space-y-6">
+            {/* Stats Summary Cards */}
+            {(() => {
+              const currentPlayerMatches = matches.filter(m => m.playerId === selectedPlayerId);
+              
+              if (currentPlayerMatches.length === 0) {
+                return (
+                  <div className="py-16 text-center bg-white rounded-xl border border-slate-200 shadow-xs">
+                    <Award className="h-12 w-12 text-slate-300 mx-auto mb-3" />
+                    <h3 className="text-base font-bold text-slate-700">No Match Reports Yet</h3>
+                    <p className="text-slate-400 text-xs mt-1">Your coach has not logged any match performances for you yet.</p>
+                  </div>
+                );
+              }
+
+              // Calculate simple analytics
+              const totalRuns = currentPlayerMatches.reduce((acc, m) => acc + (m.runsScored || 0), 0);
+              const maxRuns = currentPlayerMatches.reduce((acc, m) => Math.max(acc, m.runsScored || 0), 0);
+              const totalWickets = currentPlayerMatches.reduce((acc, m) => acc + (m.wicketsTaken || 0), 0);
+              const totalCatches = currentPlayerMatches.reduce((acc, m) => acc + (m.catches || 0), 0);
+
+              // SVG chart coordinates for runs
+              const width = 600;
+              const height = 180;
+              const padding = 30;
+              const chartHeight = height - padding * 2;
+              const chartWidth = width - padding * 2;
+
+              // We need at least 2 points to draw a line chart, otherwise we show a bar
+              const points = currentPlayerMatches.map((m, idx) => {
+                const x = padding + (idx / Math.max(currentPlayerMatches.length - 1, 1)) * chartWidth;
+                const runs = m.runsScored || 0;
+                // scale to max 100 runs
+                const maxScale = Math.max(maxRuns, 50);
+                const y = height - padding - (runs / maxScale) * chartHeight;
+                return { x, y, runs, name: m.matchName, date: m.date };
+              });
+
+              const lineD = points.length > 1 
+                ? `M ${points.map(p => `${p.x} ${p.y}`).join(' L ')}`
+                : '';
+
+              const areaD = points.length > 1
+                ? `${lineD} L ${points[points.length - 1].x} ${height - padding} L ${points[0].x} ${height - padding} Z`
+                : '';
+
+              return (
+                <div className="space-y-6">
+                  {/* Grid layout */}
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex items-center gap-3.5">
+                      <div className="bg-indigo-50 p-2.5 rounded-lg text-indigo-600">
+                        <TrendingUp className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <span className="text-[10px] font-bold text-slate-400 uppercase">Matches Played</span>
+                        <p className="text-lg font-extrabold text-slate-800">{currentPlayerMatches.length}</p>
+                      </div>
+                    </div>
+
+                    <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex items-center gap-3.5">
+                      <div className="bg-emerald-50 p-2.5 rounded-lg text-emerald-600">
+                        <Award className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <span className="text-[10px] font-bold text-slate-400 uppercase">Total Runs</span>
+                        <p className="text-lg font-extrabold text-slate-800">{totalRuns}</p>
+                      </div>
+                    </div>
+
+                    <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex items-center gap-3.5">
+                      <div className="bg-purple-50 p-2.5 rounded-lg text-purple-600">
+                        <Activity className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <span className="text-[10px] font-bold text-slate-400 uppercase">Total Wickets</span>
+                        <p className="text-lg font-extrabold text-slate-800">{totalWickets}</p>
+                      </div>
+                    </div>
+
+                    <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex items-center gap-3.5">
+                      <div className="bg-amber-50 p-2.5 rounded-lg text-amber-600">
+                        <CheckCircle className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <span className="text-[10px] font-bold text-slate-400 uppercase">Catches Taken</span>
+                        <p className="text-lg font-extrabold text-slate-800">{totalCatches}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* SVG Chart Panel */}
+                  {currentPlayerMatches.some(m => m.runsScored !== undefined) && (
+                    <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-4">
+                      <h3 className="text-xs font-bold text-slate-800 flex items-center gap-1.5 uppercase tracking-wider">
+                        <BarChart2 className="h-4 w-4 text-indigo-500" />
+                        Batting Form & Runs Progression
+                      </h3>
+                      <div className="w-full overflow-x-auto">
+                        <svg className="w-full min-w-[500px]" viewBox={`0 0 ${width} ${height}`}>
+                          <defs>
+                            <linearGradient id="chartGrad" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="0%" stopColor="rgb(79, 70, 229)" stopOpacity="0.25" />
+                              <stop offset="100%" stopColor="rgb(79, 70, 229)" stopOpacity="0" />
+                            </linearGradient>
+                          </defs>
+
+                          {/* Grid Lines */}
+                          <line x1={padding} y1={padding} x2={width - padding} y2={padding} stroke="#f1f5f9" />
+                          <line x1={padding} y1={height / 2} x2={width - padding} y2={height / 2} stroke="#f1f5f9" />
+                          <line x1={padding} y1={height - padding} x2={width - padding} y2={height - padding} stroke="#e2e8f0" strokeWidth="1.5" />
+
+                          {/* Line and Area */}
+                          {points.length > 1 ? (
+                            <>
+                              <path d={areaD} fill="url(#chartGrad)" />
+                              <path d={lineD} fill="none" stroke="rgb(79, 70, 229)" strokeWidth="3.5" strokeLinecap="round" />
+                            </>
+                          ) : (
+                            // Draw single bar or dot if only 1 match
+                            <rect
+                              x={points[0].x - 15}
+                              y={points[0].y}
+                              width={30}
+                              height={height - padding - points[0].y}
+                              fill="rgb(79, 70, 229)"
+                              rx={4}
+                            />
+                          )}
+
+                          {/* Chart Nodes / Dots */}
+                          {points.map((p, idx) => (
+                            <g key={idx} className="group">
+                              <circle
+                                cx={p.x}
+                                cy={p.y}
+                                r={5}
+                                fill="white"
+                                stroke="rgb(79, 70, 229)"
+                                strokeWidth="3"
+                                className="cursor-pointer transition hover:scale-125"
+                              />
+                              <text
+                                x={p.x}
+                                y={p.y - 12}
+                                textAnchor="middle"
+                                className="text-[10px] font-bold fill-indigo-650"
+                              >
+                                {p.runs} runs
+                              </text>
+                              <text
+                                x={p.x}
+                                y={height - 10}
+                                textAnchor="middle"
+                                className="text-[8px] font-bold fill-slate-400"
+                              >
+                                {p.date.split('-').slice(1).join('/')}
+                              </text>
+                            </g>
+                          ))}
+                        </svg>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Matches Feedback List */}
+                  <div className="space-y-4">
+                    <h3 className="text-sm font-bold text-slate-800">Match Performance Analysis Ledger</h3>
+                    <div className="space-y-4">
+                      {currentPlayerMatches.map((m) => (
+                        <div key={m.id} className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm space-y-4">
+                          {/* Match Header */}
+                          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-2 pb-3 border-b border-slate-100">
+                            <div>
+                              <h4 className="text-sm font-bold text-slate-800">{m.matchName}</h4>
+                              <span className="text-[10px] text-slate-400 font-mono font-bold block mt-0.5">Played on: {m.date}</span>
+                            </div>
+
+                            {/* Performance metrics pill */}
+                            <div className="flex gap-2">
+                              {m.runsScored !== undefined && (
+                                <span className="text-xs bg-indigo-50 border border-indigo-150 text-indigo-750 font-bold px-2.5 py-1 rounded-lg">
+                                  🏏 {m.runsScored} runs ({m.ballsFaced} balls)
+                                </span>
+                              )}
+                              {m.wicketsTaken !== undefined && (
+                                <span className="text-xs bg-purple-50 border border-purple-150 text-purple-750 font-bold px-2.5 py-1 rounded-lg">
+                                  🥎 {m.wicketsTaken} wkts / {m.runsConceded} runs ({m.oversBowled} ov)
+                                </span>
+                              )}
+                              {m.catches !== undefined && m.catches > 0 && (
+                                <span className="text-xs bg-amber-50 border border-amber-150 text-amber-750 font-bold px-2.5 py-1 rounded-lg">
+                                  🤲 {m.catches} catch
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Coach Feedback (Shared) */}
+                          {m.coachFeedback && (
+                            <div className="p-4 bg-indigo-50/40 rounded-xl border border-indigo-100/60 space-y-1">
+                              <span className="text-[9px] uppercase font-extrabold text-indigo-550 tracking-wider flex items-center gap-1.5">
+                                <User className="h-3.5 w-3.5" />
+                                Coach Feedback & Focus Areas
+                              </span>
+                              <p className="text-xs text-slate-705 leading-relaxed italic font-medium">
+                                "{m.coachFeedback}"
+                              </p>
+                            </div>
+                          )}
+
+                          {/* AI Performance Report */}
+                          {m.aiReport && (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
+                              {/* Left: Strengths & Weaknesses */}
+                              <div className="space-y-3">
+                                <div>
+                                  <span className="text-[9px] uppercase font-bold tracking-wider text-emerald-800 block mb-1.5 flex items-center gap-1">
+                                    <Sparkles className="h-3.5 w-3.5 text-emerald-500" />
+                                    Observed Strengths
+                                  </span>
+                                  <div className="flex flex-wrap gap-1.5">
+                                    {m.aiReport.strengths.map((str, i) => (
+                                      <span key={i} className="text-[10px] bg-emerald-50 text-emerald-700 font-medium px-2 py-0.5 rounded border border-emerald-100">
+                                        {str}
+                                      </span>
+                                    ))}
+                                  </div>
+                                </div>
+
+                                <div>
+                                  <span className="text-[9px] uppercase font-bold tracking-wider text-rose-800 block mb-1.5 flex items-center gap-1">
+                                    <AlertTriangle className="h-3.5 w-3.5 text-rose-500" />
+                                    Technical Issues Found
+                                  </span>
+                                  <div className="flex flex-wrap gap-1.5">
+                                    {m.aiReport.technicalIssues.map((tis, i) => (
+                                      <span key={i} className="text-[10px] bg-rose-50 text-rose-700 font-medium px-2 py-0.5 rounded border border-rose-100">
+                                        {tis}
+                                      </span>
+                                    ))}
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Right: Action Plan & Drills */}
+                              <div className="space-y-3">
+                                <div>
+                                  <span className="text-[9px] uppercase font-bold tracking-wider text-indigo-800 block mb-1.5 flex items-center gap-1">
+                                    <BookOpen className="h-3.5 w-3.5 text-indigo-500" />
+                                    AI Suggested Practice Action Plan
+                                  </span>
+                                  <ul className="list-disc pl-4 space-y-1">
+                                    {m.aiReport.actionPlan.map((act, i) => (
+                                      <li key={i} className="text-[11px] text-slate-650 leading-tight">
+                                        {act}
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
+
+                                <div>
+                                  <span className="text-[9px] uppercase font-bold tracking-wider text-slate-500 block mb-1">
+                                    Recommended Focus Drills
+                                  </span>
+                                  <div className="flex flex-wrap gap-1">
+                                    {m.aiReport.suggestedDrills.map((drName, i) => (
+                                      <span key={i} className="text-[10px] bg-slate-100 text-slate-700 font-semibold px-2 py-0.5 rounded">
+                                        {drName}
+                                      </span>
+                                    ))}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         )}
 

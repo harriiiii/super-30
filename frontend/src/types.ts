@@ -84,6 +84,7 @@ export interface MatchPerformance {
   catches?: number;
   stumpings?: number;
   observerNotes: string; // recorded by coach on-site
+  coachFeedback?: string; // visible to player/parent
   aiReport?: {
     strengths: string[];
     technicalIssues: string[];
