@@ -17,7 +17,6 @@ import {
 import { DailySessionInputs } from './components/DailySessionInputs';
 import { PlayerPractice } from './components/PlayerPractice';
 import { DrillsLibrary } from './components/DrillsLibrary';
-import { AutomaticReports } from './components/AutomaticReports';
 import { MatchReports } from './components/MatchReports';
 import { MatchSimulation } from './components/MatchSimulation';
 import { AddPlayerForm } from './components/AddPlayerForm';
@@ -75,7 +74,7 @@ function AppContent() {
   const userRole = user?.role === 'coach' ? 'Coach' : 'PlayerParent';
 
   // Active Tab per view
-  const [coachActiveTab, setCoachActiveTab] = useState<'nets' | 'auto-report' | 'matches' | 'drills' | 'simulation' | 'players'>('nets');
+  const [coachActiveTab, setCoachActiveTab] = useState<'nets' | 'matches' | 'drills' | 'simulation' | 'players'>('nets');
   const [showProfile, setShowProfile] = useState(false);
 
   // handlers — optimistic update then persist to DB
@@ -345,16 +344,7 @@ function AppContent() {
               >
                 🎥 Nets Voice & Feedback Studio
               </button>
-              <button
-                onClick={() => setCoachActiveTab('auto-report')}
-                className={`px-4 py-2 text-xs font-semibold rounded-lg transition ${
-                  coachActiveTab === 'auto-report'
-                    ? 'bg-slate-800 text-white shadow-xs'
-                    : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
-                }`}
-              >
-                ✨ AI Video Coach Reports
-              </button>
+
               <button
                 onClick={() => setCoachActiveTab('matches')}
                 className={`px-4 py-2 text-xs font-semibold rounded-lg transition ${
@@ -409,14 +399,7 @@ function AppContent() {
                   onAddSession={handleAddSession}
                 />
               )}
-              {coachActiveTab === 'auto-report' && (
-                <AutomaticReports
-                  players={players}
-                  drills={drills}
-                  reports={autoReports}
-                  onAddReport={handleAddAutoReport}
-                />
-              )}
+
               {coachActiveTab === 'matches' && (
                 <MatchReports
                   players={players}
@@ -479,6 +462,7 @@ function AppContent() {
               logs={logs}
               questions={questions}
               fixedReferences={fixedRefs}
+              matches={matches}
               onAddLog={handleAddLog}
               onAddQuestion={handleAddQuestion}
               onAnswerQuestion={handleAnswerQuestion}
