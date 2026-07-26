@@ -105,6 +105,7 @@ await db.insert(matchPerformances).values([
     runsScored: 42,
     ballsFaced: 31,
     observerNotes: 'Aarav scored 42. Excellent pull shots. However, twice got beaten on the outswing drive. Dropped front shoulder early.',
+    coachFeedback: 'Aarav played a solid inning of 42. Pull shots were highly controlled. Needs to stay patient on outswingers and let the ball come closer before driving.',
     status: 'ReportGenerated',
     aiReport: {
       strengths: ['Great hand-eye coordination on pull and hook shots', 'Quick footwork moving back to short deliveries'],
