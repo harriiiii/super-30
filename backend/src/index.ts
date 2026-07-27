@@ -241,6 +241,11 @@ Player Role: ${playerRole}
 Stats: ${JSON.stringify(stats)}
 On-site coach notes: "${observerNotes}"
 
+Instructions:
+1. Base the strengths and technicalIssues SOLELY and STRICTLY on the facts and observations provided in the "On-site coach notes" and "Stats" above. Do NOT extrapolate, hallucinate, or assume any strengths or technical flaws that are not explicitly stated or directly supported by the notes.
+2. If no positive strengths or technical issues are mentioned in the notes, do not invent them.
+3. Keep items concise and aligned with the actual input.
+
 Generate a structured JSON performance evaluation report.
 Schema must contain:
 1. strengths: Array of strings.
@@ -276,21 +281,40 @@ Schema must contain:
     }
   }
 
-  // Fallback simulator
+  // Non-hallucinated Fallback Simulator: Parses coach's notes dynamically
+  const sentences = (observerNotes || '')
+    .split(/[.!?]+/)
+    .map((s: string) => s.trim())
+    .filter((s: string) => s.length > 5);
+
+  const parsedStrengths = sentences.filter((s: string) => 
+    /good|excellent|solid|intent|great|master|nice|strong|well|elegant|quick|pull/i.test(s)
+  );
+  const parsedIssues = sentences.filter((s: string) => 
+    /dipping|drop|incorrect|error|caught|beat|slip|struggle|issue|flaw|fail|miss/i.test(s)
+  );
+
+  const strengths = parsedStrengths.length > 0 ? parsedStrengths : ['Played positive cricket matching role expectations.'];
+  const technicalIssues = parsedIssues.length > 0 ? parsedIssues : ['No critical technique deviations mentioned in notes.'];
+
+  // Match suggested drills to key words
+  const suggestedDrills: string[] = [];
+  const notesLower = (observerNotes || '').toLowerCase();
+  if (notesLower.includes('drive') || notesLower.includes('off-stump') || notesLower.includes('shoulder')) {
+    suggestedDrills.push('Cover Drive Footwork Drill');
+  }
+  if (notesLower.includes('stance') || notesLower.includes('foot') || notesLower.includes('trigger')) {
+    suggestedDrills.push('Anchor & Setup Stance Drill');
+  }
+  if (suggestedDrills.length === 0) {
+    suggestedDrills.push('Cover Drive Footwork Drill');
+  }
+
   res.json({
-    strengths: [
-      'Strong dynamic pull shot response on short pitch balls',
-      'Positive aggression and rotational strike pacing'
-    ],
-    technicalIssues: [
-      'Early shoulder rotation during drives outside off stump',
-      'Defensive posture slightly unaligned on late movement'
-    ],
-    actionPlan: [
-      'Perform shadow defense sessions daily',
-      'Utilize late impact cone drills to anchor front foot'
-    ],
-    suggestedDrills: ['Cover Drive Footwork Drill', 'Elbow Position Alignment Drill'],
+    strengths,
+    technicalIssues,
+    actionPlan: technicalIssues.map((issue: string) => `Focus training reps on rectifying: ${issue}`),
+    suggestedDrills,
     note: '(Simulated Response - Configure GEMINI_API_KEY in Secrets for Live AI)'
   });
 });

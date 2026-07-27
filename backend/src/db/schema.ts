@@ -54,6 +54,7 @@ export const coachSessions = pgTable('coach_sessions', {
 
 export const practiceLogs = pgTable('practice_logs', {
   id: varchar('id', { length: 50 }).primaryKey(),
+  playerId: varchar('player_id', { length: 50 }).references(() => players.id, { onDelete: 'cascade' }),
   date: varchar('date', { length: 20 }).notNull(),
   drillId: varchar('drill_id', { length: 50 }).notNull(),
   notes: text('notes').notNull(),
@@ -63,6 +64,7 @@ export const practiceLogs = pgTable('practice_logs', {
 
 export const questions = pgTable('questions', {
   id: varchar('id', { length: 50 }).primaryKey(),
+  playerId: varchar('player_id', { length: 50 }).references(() => players.id, { onDelete: 'cascade' }),
   date: varchar('date', { length: 20 }).notNull(),
   questionText: text('question_text').notNull(),
   videoUrl: text('video_url').notNull(),
@@ -84,6 +86,7 @@ export const matchPerformances = pgTable('match_performances', {
   id: varchar('id', { length: 50 }).primaryKey(),
   date: varchar('date', { length: 20 }).notNull(),
   matchName: varchar('match_name', { length: 200 }).notNull(),
+  matchFormat: varchar('match_format', { length: 50 }).notNull().default('T20'),
   playerId: varchar('player_id', { length: 50 }).notNull(),
   runsScored: integer('runs_scored'),
   ballsFaced: integer('balls_faced'),
