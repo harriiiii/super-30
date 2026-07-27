@@ -4,7 +4,6 @@ import fs from 'fs';
 import multer from 'multer';
 import path from 'path';
 import os from 'os';
-import { fileURLToPath } from 'url';
 import { v2 as cloudinary } from 'cloudinary'; // <-- ADDED THIS
 
 // 1. Configure Cloudinary (Make sure these are in your .env file)
@@ -13,8 +12,8 @@ cloudinary.config({
   api_key: process.env.CLOUDINARY_API_KEY,
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+// Safe for Railway Cloud
+const __dirname = process.cwd();
 
 // 2. Change UPLOADS_DIR to a TEMP_DIR (We will delete files from here after upload)
 const TEMP_DIR = os.tmpdir();
