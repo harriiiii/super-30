@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Player, Drill, CoachSessionInput, PracticeLog, PlayerPracticeQuestion, FixedReference, MatchPerformance } from '../types';
+import { Player, Drill, CoachSessionInput, PracticeLog, PlayerPracticeQuestion, FixedReference, MatchPerformance, AutoCoachReport } from '../types';
 import { 
   Dumbbell, 
   Calendar, 
@@ -38,6 +38,7 @@ interface PlayerPracticeProps {
   questions: PlayerPracticeQuestion[];
   fixedReferences: FixedReference[];
   matches: MatchPerformance[];
+  autoReports: AutoCoachReport[];
   onAddLog: (log: PracticeLog) => void;
   onAddQuestion: (q: PlayerPracticeQuestion) => void;
   onAnswerQuestion: (id: string, response: string, markFixed?: boolean) => void;
@@ -67,6 +68,7 @@ export const PlayerPractice: React.FC<PlayerPracticeProps> = ({
   questions,
   fixedReferences,
   matches,
+  autoReports,
   onAddLog,
   onAddQuestion,
   onAnswerQuestion,
@@ -101,17 +103,38 @@ export const PlayerPractice: React.FC<PlayerPracticeProps> = ({
   // Player's assigned sessions and drills
   const currentPlayerSessions = sessions.filter(s => s.playerId === selectedPlayerId);
   const currentPlayerFixed = fixedReferences.filter(fr => fr.playerId === selectedPlayerId);
+  const currentPlayerAutoReports = autoReports.filter(r => r.playerId === selectedPlayerId);
+  const currentPlayerMatches = matches.filter(m => m.playerId === selectedPlayerId);
   const currentPlayerLogs = logs.filter(l => l.playerId === selectedPlayerId);
-  const currentPlayerQuestions = questions.filter(q => q.playerId === selectedPlayerId);
 
   // --- PARENT INSIGHTS CALCULATIONS ---
   const currentMonth = new Date().toISOString().slice(0, 7); // e.g., "2026-07"
   const logsThisMonth = currentPlayerLogs.filter(l => l.date.startsWith(currentMonth));
   const targetMonthlyLogs = 20; // Assume 20 practice days a month as target
   const complianceRate = Math.min(Math.round((logsThisMonth.length / targetMonthlyLogs) * 100), 100);
-  
-  const pendingQuestions = currentPlayerQuestions.filter(q => q.status === 'Pending').length;
-  const answeredQuestions = currentPlayerQuestions.filter(q => q.status === 'Answered').length;
+
+  const pendingQuestions = questions.filter(q => q.playerId === selectedPlayerId && q.status === 'Pending').length;
+  const answeredQuestions = questions.filter(q => q.playerId === selectedPlayerId && q.status === 'Answered').length;
+
+  // --- WORKOUT / IMPROVEMENT PLAN SNAPSHOT (real data, not hardcoded) ---
+  const latestSession = currentPlayerSessions[0];
+  const planDaysRemaining = latestSession
+    ? Math.max(
+        0,
+        latestSession.assignedDurationDays -
+          Math.floor((Date.now() - new Date(latestSession.date).getTime()) / (1000 * 60 * 60 * 24))
+      )
+    : null;
+  const openHighPriorityCount = currentPlayerSessions.reduce(
+    (acc, s) => acc + s.voiceNotes.filter(vn => vn.priority === 'High').length,
+    0
+  );
+  const resolvedThisMonthCount = currentPlayerFixed.filter(fr => fr.fixedDate.startsWith(currentMonth)).length;
+  const aiIssuesFlat = currentPlayerAutoReports.flatMap(r =>
+    r.aiIssuesFound.map(issue => ({ ...issue, reportDate: r.date, coachVerified: r.coachVerified }))
+  );
+  const aiCriticalCount = aiIssuesFlat.filter(i => i.severity === 'Critical').length;
+  const aiReviewedCount = currentPlayerAutoReports.filter(r => r.coachVerified).length;
 
   const handleFileUpload = async (file: File) => {
     setUploadError('');
@@ -207,16 +230,23 @@ export const PlayerPractice: React.FC<PlayerPracticeProps> = ({
 
   const handleDownloadPDF = () => {
     const doc = new jsPDF();
-    
-    // 1. Header Section
-    doc.setFontSize(16);
+
+    // 1. Header Section (with badge monogram logo)
+    doc.setFillColor(5, 150, 105); // emerald-600, matches in-app brand badge
+    doc.roundedRect(20, 10, 14, 14, 3, 3, 'F');
     doc.setFont("helvetica", "bold");
-    doc.text("SUPER 30 CRICKET ACADEMY", 105, 20, { align: "center" });
-    
+    doc.setFontSize(10);
+    doc.setTextColor(255, 255, 255);
+    doc.text("S30", 27, 19, { align: "center" });
+    doc.setTextColor(0, 0, 0);
+
+    doc.setFontSize(16);
+    doc.text("SUPER 30 CRICKET ACADEMY", 105, 17, { align: "center" });
+
     doc.setFontSize(12);
     doc.setFont("helvetica", "normal");
-    doc.text("PARENT COMPLIANCE & PROGRESS REPORT", 105, 28, { align: "center" });
-    
+    doc.text("PARENT COMPLIANCE & PROGRESS REPORT", 105, 25, { align: "center" });
+
     // Line separator
     doc.setLineWidth(0.5);
     doc.line(20, 35, 190, 35);
@@ -256,8 +286,144 @@ export const PlayerPractice: React.FC<PlayerPracticeProps> = ({
     } else {
       doc.text("No technical flaws marked as resolved this month.", 20, yPos);
     }
-    
-    // 5. Save the PDF file
+    yPos += 8;
+
+    // 5. Match Performance Summary & Runs Progression Chart
+    if (currentPlayerMatches.length > 0) {
+      if (yPos > 230) {
+        doc.addPage();
+        yPos = 20;
+      }
+
+      const totalRuns = currentPlayerMatches.reduce((acc, m) => acc + (m.runsScored || 0), 0);
+      const totalWickets = currentPlayerMatches.reduce((acc, m) => acc + (m.wicketsTaken || 0), 0);
+      const totalCatches = currentPlayerMatches.reduce((acc, m) => acc + (m.catches || 0), 0);
+      const avgRuns = Math.round(totalRuns / currentPlayerMatches.length);
+
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(11);
+      doc.text("Match Performance Summary:", 20, yPos);
+      yPos += 7;
+      doc.setFont("helvetica", "normal");
+      doc.text(
+        `Matches Played: ${currentPlayerMatches.length}   |   Total Runs: ${totalRuns}   |   Avg: ${avgRuns}   |   Wickets: ${totalWickets}   |   Catches: ${totalCatches}`,
+        20,
+        yPos
+      );
+      yPos += 10;
+
+      doc.setFont("helvetica", "bold");
+      doc.text("Runs Progression (Recent Matches):", 20, yPos);
+      yPos += 6;
+
+      // Bar chart drawn with vector primitives (last up to 8 matches)
+      const barsData = currentPlayerMatches.slice(-8);
+      const chartX = 20;
+      const chartY = yPos;
+      const chartW = 170;
+      const chartH = 45;
+      const maxRuns = Math.max(...barsData.map(m => m.runsScored || 0), 10);
+      const barGap = 4;
+      const barWidth = Math.min((chartW - barGap * (barsData.length - 1)) / barsData.length, 25);
+      const groupWidth = barWidth * barsData.length + barGap * (barsData.length - 1);
+      const groupStartX = chartX + (chartW - groupWidth) / 2;
+
+      doc.setDrawColor(203, 213, 225);
+      doc.line(chartX, chartY + chartH, chartX + chartW, chartY + chartH);
+
+      doc.setFillColor(79, 70, 229);
+      barsData.forEach((m, i) => {
+        const runs = m.runsScored || 0;
+        const barH = maxRuns > 0 ? (runs / maxRuns) * chartH : 0;
+        const x = groupStartX + i * (barWidth + barGap);
+        const y = chartY + chartH - barH;
+        doc.rect(x, y, barWidth, Math.max(barH, 0.5), 'F');
+
+        doc.setFontSize(7);
+        doc.setTextColor(30, 41, 59);
+        doc.text(String(runs), x + barWidth / 2, y - 2, { align: 'center' });
+
+        doc.setFontSize(6);
+        doc.setTextColor(100, 100, 100);
+        doc.text(m.date.split('-').slice(1).join('/'), x + barWidth / 2, chartY + chartH + 5, { align: 'center' });
+      });
+
+      doc.setTextColor(0, 0, 0);
+      doc.setFontSize(11);
+      yPos = chartY + chartH + 14;
+
+      // Match-by-match performance log (most recent first)
+      if (yPos > 250) {
+        doc.addPage();
+        yPos = 20;
+      }
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(11);
+      doc.text("Match-by-Match Performance Log:", 20, yPos);
+      yPos += 8;
+
+      const recentMatches = [...currentPlayerMatches].reverse().slice(0, 6);
+      recentMatches.forEach((m) => {
+        const statParts: string[] = [];
+        if (m.runsScored !== undefined) statParts.push(`${m.runsScored} runs (${m.ballsFaced ?? 0}b)`);
+        if (m.wicketsTaken !== undefined) statParts.push(`${m.wicketsTaken} wkts / ${m.runsConceded ?? 0} runs (${m.oversBowled ?? 0} ov)`);
+        if (m.catches) statParts.push(`${m.catches} catch${m.catches > 1 ? 'es' : ''}`);
+
+        const feedbackLines: string[] = m.coachFeedback
+          ? doc.splitTextToSize(`Coach: "${m.coachFeedback}"`, 165)
+          : [];
+        const entryHeight = 12 + feedbackLines.length * 4.5;
+
+        if (yPos + entryHeight > 275) {
+          doc.addPage();
+          yPos = 20;
+        }
+
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(10);
+        doc.text(m.matchName, 20, yPos);
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(8);
+        doc.setTextColor(100, 100, 100);
+        doc.text(m.date, 190, yPos, { align: "right" });
+        doc.setTextColor(0, 0, 0);
+        yPos += 5;
+
+        doc.setFontSize(9);
+        doc.text(statParts.length > 0 ? statParts.join("   |   ") : "No stats recorded", 20, yPos);
+        yPos += 5;
+
+        if (feedbackLines.length > 0) {
+          doc.setFont("helvetica", "italic");
+          doc.setFontSize(8);
+          doc.setTextColor(80, 80, 80);
+          doc.text(feedbackLines, 20, yPos);
+          doc.setTextColor(0, 0, 0);
+          doc.setFont("helvetica", "normal");
+          yPos += feedbackLines.length * 4.5;
+        }
+        yPos += 5;
+      });
+    }
+
+    // 6. Footer & page numbers on every page
+    const pageCount = doc.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      doc.setDrawColor(226, 232, 240);
+      doc.setLineWidth(0.3);
+      doc.line(20, 282, 190, 282);
+
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8);
+      doc.setTextColor(120, 120, 120);
+      doc.text("Super 30 Cricket Academy - Confidential Parent Report", 20, 288);
+      doc.text(`Generated on ${new Date().toLocaleDateString()}`, 20, 293);
+      doc.text(`Page ${i} of ${pageCount}`, 190, 288, { align: "right" });
+      doc.setTextColor(0, 0, 0);
+    }
+
+    // 7. Save the PDF file
     doc.save(`Super30_Report_${currentPlayer?.name?.replace(/\s+/g, '_') || 'Player'}.pdf`);
   };
 
@@ -338,6 +504,56 @@ export const PlayerPractice: React.FC<PlayerPracticeProps> = ({
 
         {/* TAB 1: Assigned Workouts & Progress */}
         {activeTab === 'assigned' && (
+          <div className="space-y-6">
+            {user?.role === 'parent' && (
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex items-center gap-3.5">
+                  <div className="bg-indigo-50 p-2.5 rounded-lg text-indigo-600">
+                    <Dumbbell className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase">Active Plan</span>
+                    <p className="text-lg font-extrabold text-slate-800">
+                      {planDaysRemaining !== null ? `${planDaysRemaining}d left` : 'None'}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex items-center gap-3.5">
+                  <div className="bg-rose-50 p-2.5 rounded-lg text-rose-600">
+                    <AlertTriangle className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase">High-Priority Focus Areas</span>
+                    <p className="text-lg font-extrabold text-slate-800">{openHighPriorityCount}</p>
+                  </div>
+                </div>
+
+                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex items-center gap-3.5">
+                  <div className="bg-emerald-50 p-2.5 rounded-lg text-emerald-600">
+                    <CheckCircle className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase">Resolved This Month</span>
+                    <p className="text-lg font-extrabold text-slate-800">{resolvedThisMonthCount}</p>
+                  </div>
+                </div>
+
+                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex items-center gap-3.5">
+                  <div className="bg-purple-50 p-2.5 rounded-lg text-purple-600">
+                    <Sparkles className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase">AI-Flagged Issues</span>
+                    <p className="text-lg font-extrabold text-slate-800">
+                      {aiIssuesFlat.length}
+                      {aiCriticalCount > 0 && <span className="text-rose-600"> ({aiCriticalCount} critical)</span>}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             <div className="lg:col-span-2 space-y-6">
               {currentPlayerSessions.length > 0 ? (
@@ -480,7 +696,37 @@ export const PlayerPractice: React.FC<PlayerPracticeProps> = ({
   Download PDF Report
 </button>
                 </div>
-              ) : (
+              ) : null}
+
+              {user?.role === 'parent' && aiIssuesFlat.length > 0 && (
+                <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm space-y-3">
+                  <div className="flex justify-between items-center">
+                    <h3 className="text-base font-bold text-slate-800">AI Video Analysis</h3>
+                    <Sparkles className="h-5 w-5 text-purple-500" />
+                  </div>
+                  <p className="text-xs text-slate-600">
+                    {aiReviewedCount} of {currentPlayerAutoReports.length} AI reports reviewed by coach.
+                  </p>
+                  <div className="space-y-2">
+                    {aiIssuesFlat.slice(0, 3).map((issue, i) => (
+                      <div key={i} className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg space-y-1">
+                        <div className="flex items-center gap-1.5">
+                          <span className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded ${
+                            issue.severity === 'Critical' ? 'bg-rose-100 text-rose-700' :
+                            issue.severity === 'Moderate' ? 'bg-amber-100 text-amber-700' :
+                            'bg-slate-200 text-slate-600'
+                          }`}>{issue.severity}</span>
+                          <span className="text-[10px] text-slate-400 font-mono">Ref {issue.timestampInVideo}</span>
+                        </div>
+                        <p className="text-xs font-semibold text-slate-800">{issue.issue}</p>
+                        <p className="text-[10px] text-slate-500">{issue.rootCause}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {user?.role === 'player' && (
                 <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm space-y-3">
                   <h3 className="text-base font-bold text-slate-800">My Daily Checklist</h3>
                   <p className="text-xs text-slate-600">Practice your assigned drills daily. Focus on holding correct technical posture during each repetition.</p>
@@ -549,6 +795,7 @@ export const PlayerPractice: React.FC<PlayerPracticeProps> = ({
               );
             })()}
 
+          </div>
           </div>
         )}
 
@@ -762,8 +1009,12 @@ export const PlayerPractice: React.FC<PlayerPracticeProps> = ({
                             <span className="text-xs font-bold text-slate-800">
                               {drill?.name || log.drillId}
                             </span>
-                            <span className="text-[10px] bg-emerald-50 text-emerald-700 border border-emerald-200 font-bold px-1.5 py-0.5 rounded ml-auto flex items-center gap-1">
-                              <CheckCircle className="h-3 w-3" /> Track Verified
+                            <span className={`text-[10px] border font-bold px-1.5 py-0.5 rounded ml-auto flex items-center gap-1 ${
+                              log.verifiedByCoach
+                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                : 'bg-amber-50 text-amber-700 border-amber-200'
+                            }`}>
+                              <CheckCircle className="h-3 w-3" /> {log.verifiedByCoach ? 'Coach Verified' : 'Pending Review'}
                             </span>
                           </div>
                           <p className="text-xs text-slate-600 font-medium">"{log.notes}"</p>
@@ -864,8 +1115,6 @@ export const PlayerPractice: React.FC<PlayerPracticeProps> = ({
           <div className="space-y-6">
             {/* Stats Summary Cards */}
             {(() => {
-              const currentPlayerMatches = matches.filter(m => m.playerId === selectedPlayerId);
-              
               if (currentPlayerMatches.length === 0) {
                 return (
                   <div className="py-16 text-center bg-white rounded-xl border border-slate-200 shadow-xs">

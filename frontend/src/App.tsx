@@ -467,6 +467,7 @@ function AppContent() {
               questions={questions}
               fixedReferences={fixedRefs}
               matches={matches}
+              autoReports={autoReports}
               onAddLog={handleAddLog}
               onAddQuestion={handleAddQuestion}
               onAnswerQuestion={handleAnswerQuestion}
