@@ -45,6 +45,7 @@ export interface CoachSessionInput {
 
 export interface PracticeLog {
   id: string;
+  playerId?: string;
   date: string;
   drillId: string;
   notes: string;
@@ -54,6 +55,7 @@ export interface PracticeLog {
 
 export interface PlayerPracticeQuestion {
   id: string;
+  playerId?: string;
   date: string;
   questionText: string;
   videoUrl: string;
@@ -76,6 +78,7 @@ export interface MatchPerformance {
   date: string;
   matchName: string;
   playerId: string;
+  matchFormat: string;
   runsScored?: number;
   ballsFaced?: number;
   wicketsTaken?: number;
