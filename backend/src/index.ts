@@ -19,7 +19,7 @@ import { requireAuth } from './middleware/auth.js';
 
 dotenv.config();
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const __dirname = process.cwd();
 const UPLOADS_DIR = path.resolve(__dirname, '../uploads');
 
 const app = express();
