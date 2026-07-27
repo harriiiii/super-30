@@ -9,7 +9,10 @@ import type {
   PracticeLog,
 } from '../types';
 
-const BASE = '/api';
+// ⚠️ IMPORTANT FOR APK & HOSTING:
+// When building the APK, change this to your computer's IP, e.g., 'http://192.168.1.15:5000/api'
+// When hosting on Render, change this to your live URL, e.g., 'https://super30-backend.onrender.com/api'
+const BASE = import.meta.env.VITE_API_URL || '/api';
 
 function getToken() {
   return localStorage.getItem('auth_token');
@@ -65,23 +68,28 @@ export function uploadVideo(
   return new Promise((resolve, reject) => {
     const token = localStorage.getItem('auth_token');
     const formData = new FormData();
-    formData.append('video', file);
+    formData.append('video', file); // 'video' matches the backend upload.single('video')
 
     const xhr = new XMLHttpRequest();
-    xhr.open('POST', '/api/uploads/video');
+    
+    // 🔥 FIXED: Now it uses the dynamic BASE url instead of a hardcoded string
+    xhr.open('POST', `${BASE}/uploads/video`);
+    
     if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
 
     xhr.upload.onprogress = e => {
       if (e.lengthComputable && onProgress) onProgress(Math.round((e.loaded / e.total) * 100));
     };
+    
     xhr.onload = () => {
       if (xhr.status === 201) {
-        resolve(JSON.parse(xhr.responseText));
+        resolve(JSON.parse(xhr.responseText)); // Cloudinary URL is returned here!
       } else {
         try { reject(new Error(JSON.parse(xhr.responseText).error)); }
         catch { reject(new Error('Upload failed')); }
       }
     };
+    
     xhr.onerror = () => reject(new Error('Network error during upload'));
     xhr.send(formData);
   });
