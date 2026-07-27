@@ -4,7 +4,11 @@ import fs from 'fs';
 import multer from 'multer';
 import path from 'path';
 import os from 'os';
-import { v2 as cloudinary } from 'cloudinary'; // <-- ADDED THIS
+import { v2 as cloudinary } from 'cloudinary';
+import dotenv from 'dotenv';
+
+// Load environment variables immediately (ES Modules order fix)
+dotenv.config();
 
 // 1. Configure Cloudinary (Make sure these are in your .env file)
 cloudinary.config({
@@ -43,6 +47,27 @@ const upload = multer({
 });
 
 const router = Router();
+
+// GET: Generate Signed Upload Signature for direct browser-to-cloudinary upload
+router.get('/signature', (req, res) => {
+  try {
+    const timestamp = Math.round((new Date()).getTime() / 1000);
+    const signature = cloudinary.utils.api_sign_request({
+      timestamp: timestamp,
+      folder: 'super30_practice_videos'
+    }, process.env.CLOUDINARY_API_SECRET!);
+
+    res.json({
+      signature,
+      timestamp,
+      apiKey: process.env.CLOUDINARY_API_KEY,
+      cloudName: process.env.CLOUDINARY_CLOUD_NAME
+    });
+  } catch (error) {
+    console.error('Error generating Cloudinary signature:', error);
+    res.status(500).json({ error: 'Failed to generate upload signature' });
+  }
+});
 
 // POST: Upload Video
 router.post('/video', upload.single('video'), async (req, res) => {

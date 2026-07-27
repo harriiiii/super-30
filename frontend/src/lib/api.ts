@@ -61,38 +61,85 @@ export interface VideoLibraryItem {
   uploadedAt: string;
 }
 
-export function uploadVideo(
+export async function uploadVideo(
   file: File,
   onProgress?: (pct: number) => void,
 ): Promise<UploadedVideo> {
-  return new Promise((resolve, reject) => {
-    const token = localStorage.getItem('auth_token');
-    const formData = new FormData();
-    formData.append('video', file); // 'video' matches the backend upload.single('video')
-
-    const xhr = new XMLHttpRequest();
-    
-    // 🔥 FIXED: Now it uses the dynamic BASE url instead of a hardcoded string
-    xhr.open('POST', `${BASE}/uploads/video`);
-    
-    if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
-
-    xhr.upload.onprogress = e => {
-      if (e.lengthComputable && onProgress) onProgress(Math.round((e.loaded / e.total) * 100));
-    };
-    
-    xhr.onload = () => {
-      if (xhr.status === 201) {
-        resolve(JSON.parse(xhr.responseText)); // Cloudinary URL is returned here!
-      } else {
-        try { reject(new Error(JSON.parse(xhr.responseText).error)); }
-        catch { reject(new Error('Upload failed')); }
+  const token = localStorage.getItem('auth_token');
+  
+  try {
+    // 1. Fetch Cloudinary signature from backend
+    const signRes = await fetch(`${BASE}/uploads/signature`, {
+      headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
       }
-    };
-    
-    xhr.onerror = () => reject(new Error('Network error during upload'));
-    xhr.send(formData);
-  });
+    });
+
+    if (!signRes.ok) throw new Error('Failed to fetch signature');
+    const { signature, timestamp, apiKey, cloudName } = await signRes.json();
+
+    // 2. Upload DIRECTLY from browser to Cloudinary (Bypasses Backend/Cloudflare Tunnel limits)
+    return new Promise((resolve, reject) => {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('signature', signature);
+      formData.append('timestamp', timestamp.toString());
+      formData.append('api_key', apiKey);
+      formData.append('folder', 'super30_practice_videos');
+
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', `https://api.cloudinary.com/v1_1/${cloudName}/video/upload`);
+
+      xhr.upload.onprogress = e => {
+        if (e.lengthComputable && onProgress) onProgress(Math.round((e.loaded / e.total) * 100));
+      };
+
+      xhr.onload = () => {
+        if (xhr.status === 200 || xhr.status === 201) {
+          const res = JSON.parse(xhr.responseText);
+          resolve({
+            url: res.secure_url,
+            filename: res.public_id,
+            size: res.bytes,
+            mimetype: file.type,
+          });
+        } else {
+          try { reject(new Error(JSON.parse(xhr.responseText).error.message)); }
+          catch { reject(new Error('Cloudinary direct upload failed')); }
+        }
+      };
+
+      xhr.onerror = () => reject(new Error('Network error during Cloudinary upload'));
+      xhr.send(formData);
+    });
+  } catch (err) {
+    console.warn('Falling back to local backend upload server...', err);
+    // 3. Fallback: Upload to local backend if direct upload setup is missing/fails
+    return new Promise((resolve, reject) => {
+      const formData = new FormData();
+      formData.append('video', file);
+
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', `${BASE}/uploads/video`);
+      if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+
+      xhr.upload.onprogress = e => {
+        if (e.lengthComputable && onProgress) onProgress(Math.round((e.loaded / e.total) * 100));
+      };
+
+      xhr.onload = () => {
+        if (xhr.status === 201 || xhr.status === 200) {
+          resolve(JSON.parse(xhr.responseText));
+        } else {
+          try { reject(new Error(JSON.parse(xhr.responseText).error)); }
+          catch { reject(new Error('Local upload failed')); }
+        }
+      };
+
+      xhr.onerror = () => reject(new Error('Network error during local upload'));
+      xhr.send(formData);
+    });
+  }
 }
 
 export const api = {
