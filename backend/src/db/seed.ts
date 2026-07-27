@@ -89,12 +89,9 @@ await db.insert(coachSessions).values([
 ]).onConflictDoNothing();
 
 await db.insert(practiceLogs).values([
-  { id: 'pl1', date: '2026-07-15', drillId: 'd1', notes: 'Completed 30 reps of Cover Drive cone drills. Focused on planting front foot fully.', videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-cricket-player-batting-in-slow-motion-32533-large.mp4', verifiedByCoach: true },
+  { id: 'pl1', playerId: 'p1', date: '2026-07-15', drillId: 'd1', notes: 'Completed 30 reps of Cover Drive cone drills. Focused on planting front foot fully.', videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-cricket-player-batting-in-slow-motion-32533-large.mp4', verifiedByCoach: true },
 ]).onConflictDoNothing();
-
-await db.insert(questions).values([
-  { id: 'q1', date: '2026-07-14', questionText: 'Hi Coach, I feel my back foot is slipping when playing the cover drive on wet nets. Is my stance too wide?', videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-cricket-player-batting-in-slow-motion-32533-large.mp4', status: 'Answered', coachResponse: 'Stance is slightly wide but main issue is back foot drag. Focus on anchoring your back foot toe.', isFixed: false },
-]).onConflictDoNothing();
+// No pre-seeded Q&A questions so that the list starts empty by default
 
 await db.insert(matchPerformances).values([
   {
@@ -102,6 +99,7 @@ await db.insert(matchPerformances).values([
     date: '2026-07-12',
     matchName: 'Super 30 Academy vs Green Valley CC',
     playerId: 'p1',
+    matchFormat: 'T20',
     runsScored: 42,
     ballsFaced: 31,
     observerNotes: 'Aarav scored 42. Excellent pull shots. However, twice got beaten on the outswing drive. Dropped front shoulder early.',
