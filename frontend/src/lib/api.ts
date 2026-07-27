@@ -12,7 +12,8 @@ import type {
 // ⚠️ IMPORTANT FOR APK & HOSTING:
 // When building the APK, change this to your computer's IP, e.g., 'http://192.168.1.15:5000/api'
 // When hosting on Render, change this to your live URL, e.g., 'https://super30-backend.onrender.com/api'
-const BASE = import.meta.env.VITE_API_URL || '/api';
+// Hardcoded for Production
+const BASE = 'https://super-30-production.up.railway.app/api';
 
 function getToken() {
   return localStorage.getItem('auth_token');
