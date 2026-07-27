@@ -3,6 +3,7 @@ import { Router } from 'express';
 import fs from 'fs';
 import multer from 'multer';
 import path from 'path';
+import os from 'os';
 import { fileURLToPath } from 'url';
 import { v2 as cloudinary } from 'cloudinary'; // <-- ADDED THIS
 
@@ -16,7 +17,8 @@ cloudinary.config({
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // 2. Change UPLOADS_DIR to a TEMP_DIR (We will delete files from here after upload)
-const TEMP_DIR = path.resolve(__dirname, '../../temp_uploads');
+const TEMP_DIR = os.tmpdir();
+
 if (!fs.existsSync(TEMP_DIR)) fs.mkdirSync(TEMP_DIR, { recursive: true });
 
 const storage = multer.diskStorage({
