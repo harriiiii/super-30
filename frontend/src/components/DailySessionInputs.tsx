@@ -1,19 +1,31 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { Player, Drill, CoachSessionInput, VoiceNote, FixedReference, PlayerPracticeQuestion } from '../types';
-import { Video, Mic, Plus, Trash2, Send, Check, User, Sparkles, MessageSquare, RefreshCw, UploadCloud, X, Film, Link, AlertTriangle } from 'lucide-react';
+import { Player, Drill, CoachSessionInput, VoiceNote, FixedReference, PlayerPracticeQuestion, PracticeLog, MatchPerformance } from '../types';
+import { Video, Mic, Plus, Trash2, Send, Check, User, Sparkles, MessageSquare, RefreshCw, UploadCloud, X, Film, Link, AlertTriangle, Dumbbell } from 'lucide-react';
 import { motion } from 'motion/react';
 import { uploadVideo } from '../lib/api';
+import { getPlayerTechniqueInsights, detectFeedbackDeviationAlert, RecurringIssueAlert } from '../lib/insights';
 
 interface DailySessionInputsProps {
   players: Player[];
   drills: Drill[];
   sessions: CoachSessionInput[];
+  logs: PracticeLog[];
+  matches: MatchPerformance[];
   questions: PlayerPracticeQuestion[];
   onAnswerQuestion: (id: string, response: string, markFixed?: boolean) => void;
   onAddSession: (session: CoachSessionInput) => void;
 }
 
-export const DailySessionInputs: React.FC<DailySessionInputsProps> = ({ players, drills, sessions, questions, onAnswerQuestion, onAddSession }) => {
+export const DailySessionInputs: React.FC<DailySessionInputsProps> = ({ 
+  players, 
+  drills, 
+  sessions, 
+  logs,
+  matches,
+  questions, 
+  onAnswerQuestion, 
+  onAddSession 
+}) => {
   const [selectedPlayerId, setSelectedPlayerId] = useState(players[0]?.id || '');
   const [videoName, setVideoName] = useState('');
   const [videoUrl, setVideoUrl] = useState('');
@@ -25,16 +37,7 @@ export const DailySessionInputs: React.FC<DailySessionInputsProps> = ({ players,
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   // Custom voice notes list
-  const [voiceNotes, setVoiceNotes] = useState<VoiceNote[]>([
-    {
-      id: 'vn_init_1',
-      timestamp: '0:04',
-      originalVoiceTranscript: 'Uhm look at the elbow there Rohan, aarav, the elbow is dipping down. You are playing it too far from your body, leading to an open face and popping the ball up.',
-      editedText: 'High front elbow is dipping during drive, causing ball to pop up towards cover. Keep lead elbow pointed up toward bowler.',
-      category: 'Shot Feedback',
-      priority: 'High'
-    }
-  ]);
+  const [voiceNotes, setVoiceNotes] = useState<VoiceNote[]>([]);
 
   // Speech recognition states
   const [isListening, setIsListening] = useState(false);
@@ -269,6 +272,49 @@ export const DailySessionInputs: React.FC<DailySessionInputsProps> = ({ players,
               </select>
             </div>
 
+            {/* Technique Insights Panel */}
+            {(() => {
+              const insights = getPlayerTechniqueInsights(selectedPlayerId, sessions, matches, logs, drills);
+              const activeInsights = insights.filter(ins => ins.complianceStatus !== 'Neutral');
+              
+              if (activeInsights.length === 0) return null;
+
+              return (
+                <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2.5">
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block flex items-center gap-1.5">
+                    <Sparkles className="h-3.5 w-3.5 text-indigo-500 animate-pulse" />
+                    Athlete History & Technique Insights
+                  </span>
+                  <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                    {activeInsights.map(ins => (
+                      <div key={ins.conceptId} className="p-2.5 bg-white border border-slate-100 rounded-lg space-y-1.5 shadow-2xs">
+                        <div className="flex justify-between items-center gap-2">
+                          <h4 className="text-xs font-bold text-slate-800">{ins.conceptName}</h4>
+                          <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded uppercase ${
+                            ins.complianceStatus === 'Low' ? 'bg-rose-100 text-rose-800' :
+                            ins.complianceStatus === 'Medium' ? 'bg-amber-100 text-amber-800' :
+                            ins.complianceStatus === 'High' ? 'bg-emerald-100 text-emerald-800' :
+                            'bg-indigo-100 text-indigo-800'
+                          }`}>
+                            {ins.complianceStatus === 'Mastered' ? 'Mastered' : `${ins.complianceStatus} Compliance`}
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-slate-650 font-medium leading-normal">{ins.verdictMessage}</p>
+                        <div className="flex items-center gap-1.5 text-[9px] text-slate-400 font-semibold">
+                          <span>Focus Drills:</span>
+                          <div className="flex flex-wrap gap-1">
+                            {ins.relatedDrillNames.map((dName, idx) => (
+                              <span key={idx} className="bg-slate-100 text-slate-700 px-1 py-0.2 rounded font-sans">{dName}</span>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
+
 
 
             {/* Upload zone — shown when no video loaded */}
@@ -380,7 +426,7 @@ export const DailySessionInputs: React.FC<DailySessionInputsProps> = ({ players,
                 <Mic className="h-5 w-5 text-rose-500" />
                 2. Live Audio Voice-Note Dictation
               </h3>
-              <span className="text-[10px] bg-indigo-50 text-indigo-700 font-bold px-2 py-0.5 rounded uppercase tracking-wider">Gemini Audio Cleaner Powered</span>
+
             </div>
 
             <div className="p-4 bg-slate-50 rounded-xl border border-slate-200/60 space-y-4">
@@ -452,7 +498,7 @@ export const DailySessionInputs: React.FC<DailySessionInputsProps> = ({ players,
                   className="flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white px-4 py-2 rounded-lg text-xs font-semibold transition shadow-sm"
                 >
                   <Sparkles className="h-3.5 w-3.5 text-amber-400" />
-                  Process & Add AI Feedback
+                  Process Feedback
                 </button>
               </div>
             </div>  </div>
@@ -655,6 +701,68 @@ export const DailySessionInputs: React.FC<DailySessionInputsProps> = ({ players,
                 />
               </div>
 
+              {/* Real-time Recurring Technique Warning Alert Cards */}
+              {(() => {
+                const currentFeedbackText = [
+                  coachComments,
+                  customSpeechText,
+                  ...voiceNotes.map(vn => vn.editedText || vn.originalVoiceTranscript || '')
+                ].join(' ');
+                const alerts = detectFeedbackDeviationAlert(
+                  selectedPlayerId,
+                  currentFeedbackText,
+                  sessions,
+                  matches,
+                  logs,
+                  drills
+                );
+
+                if (alerts.length === 0) return null;
+
+                return (
+                  <div className="space-y-2.5 animate-fade-in p-4 bg-amber-50/50 border border-amber-300 rounded-xl shadow-md shadow-amber-100/50 relative overflow-hidden">
+                    {/* Glowing pulse indicator */}
+                    <div className="absolute top-0 left-0 w-1 h-full bg-amber-500 animate-pulse" />
+                    
+                    <span className="text-[10px] font-black text-amber-800 uppercase tracking-widest flex items-center gap-1.5 font-sans">
+                      <AlertTriangle className="h-4 w-4 text-amber-600 animate-bounce" />
+                      Recurring Technique Issue Alert
+                    </span>
+
+                    <div className="space-y-2">
+                      {alerts.map(alert => (
+                        <div key={alert.conceptId} className="text-xs space-y-1">
+                          <div className="flex items-center justify-between gap-2 flex-wrap">
+                            <span className="font-bold text-slate-800 text-xs">Category: {alert.conceptName}</span>
+                            <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase ${
+                              alert.severity === 'Critical' ? 'bg-rose-100 text-rose-800 border border-rose-250 animate-pulse' :
+                              alert.severity === 'Warning' ? 'bg-amber-100 text-amber-800 border border-amber-250' :
+                              'bg-blue-100 text-blue-800 border border-blue-250'
+                            }`}>
+                              {alert.severity} status
+                            </span>
+                          </div>
+                          
+                          <p className="text-slate-650 font-medium leading-relaxed font-serif text-xs italic bg-white/70 p-2.5 rounded-lg border border-amber-200 shadow-2xs">
+                            "{alert.message}"
+                          </p>
+
+                          <div className="flex items-center gap-1.5 text-[10px] text-slate-500 pt-1 font-semibold flex-wrap">
+                            <span>Practiced corrective drills:</span>
+                            <span className="text-slate-900 font-bold bg-slate-200/60 px-1.5 py-0.2 rounded font-sans">
+                              {alert.practiceCount} times
+                            </span>
+                            {alert.practiceCount > 0 && (
+                              <span className="text-slate-400">({alert.relatedDrillNames.join(', ')})</span>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
+
               <button
                 type="button"
                 onClick={handleSaveAndAssign}
@@ -677,82 +785,156 @@ export const DailySessionInputs: React.FC<DailySessionInputsProps> = ({ players,
             </div>
           </div>
 
-          {/* Section 5: Athlete Help Requests & Q&A */}
-          <div className="bg-white rounded-xl p-6 border border-slate-200 shadow-sm space-y-4">
-            <h3 className="text-base font-semibold text-slate-800 flex items-center gap-2 pb-2 border-b border-slate-100">
-              <MessageSquare className="h-5 w-5 text-rose-500" />
-              5. Athlete Technical Questions ({questions.filter(q => q.status === 'Pending').length} Pending)
-            </h3>
+            {/* Right Column: Q&A and Practice Logs */}
+            <div className="space-y-6">
+              {/* Section 5: Athlete Help Requests & Q&A */}
+              <div className="bg-white rounded-xl p-6 border border-slate-200 shadow-sm space-y-4">
+                {(() => {
+                  const currentPlayerQuestions = questions.filter(q => q.playerId === selectedPlayerId);
+                  const pendingCount = currentPlayerQuestions.filter(q => q.status === 'Pending').length;
 
-            {questions.length > 0 ? (
-              <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
-                {questions.map((q) => (
-                  <div key={q.id} className="p-3.5 bg-slate-50 border border-slate-200 rounded-lg space-y-2 text-xs">
-                    <div className="flex justify-between items-center text-[10px] font-bold text-slate-400">
-                      <span>Date: {q.date}</span>
-                      <span className={`px-1.5 py-0.5 rounded uppercase font-sans ${
-                        q.status === 'Answered' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800 animate-pulse'
-                      }`}>{q.status}</span>
-                    </div>
+                  return (
+                    <>
+                      <h3 className="text-base font-semibold text-slate-800 flex items-center gap-2 pb-2 border-b border-slate-100">
+                        <MessageSquare className="h-5 w-5 text-rose-500" />
+                        5. Athlete Technical Questions ({pendingCount} Pending)
+                      </h3>
 
-                    <div>
-                      <span className="font-semibold text-slate-500 uppercase text-[9px] tracking-wider block">Question:</span>
-                      <p className="text-slate-800 font-medium mt-0.5 italic">"{q.questionText}"</p>
-                    </div>
+                      {currentPlayerQuestions.length > 0 ? (
+                        <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
+                          {currentPlayerQuestions.map((q) => (
+                            <div key={q.id} className="p-3.5 bg-slate-50 border border-slate-200 rounded-lg space-y-2 text-xs">
+                              <div className="flex justify-between items-center text-[10px] font-bold text-slate-400">
+                                <span>Date: {q.date}</span>
+                                <span className={`px-1.5 py-0.5 rounded uppercase font-sans ${
+                                  q.status === 'Answered' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800 animate-pulse'
+                                }`}>{q.status}</span>
+                              </div>
 
-                    {q.status === 'Answered' ? (
-                      <div className="p-2.5 bg-emerald-50 border border-emerald-150 rounded text-emerald-950 font-serif">
-                        <span className="text-[9px] uppercase font-bold tracking-wider text-emerald-800 block font-sans mb-0.5">Your Response:</span>
-                        "{q.coachResponse}"
-                      </div>
-                    ) : (
-                      <div className="pt-2 border-t border-slate-200">
-                        {answeringQId === q.id ? (
-                          <div className="space-y-2">
-                            <textarea
-                              rows={2}
-                              value={responseText}
-                              onChange={(e) => setResponseText(e.target.value)}
-                              placeholder="Write technical advice..."
-                              className="w-full px-2 py-1.5 border border-slate-200 rounded text-xs focus:outline-none focus:border-indigo-500"
-                            />
-                            <div className="flex gap-2 justify-end">
-                              <button
-                                type="button"
-                                onClick={() => { setAnsweringQId(null); setResponseText(''); }}
-                                className="px-2 py-1 bg-slate-100 text-slate-600 rounded hover:bg-slate-200 transition font-semibold"
-                              >
-                                Cancel
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleAnswerQuestionSubmit(q.id)}
-                                className="px-2.5 py-1 bg-emerald-600 text-white rounded hover:bg-emerald-700 transition font-semibold"
-                              >
-                                Submit Answer
-                              </button>
+                              <div>
+                                <span className="font-semibold text-slate-500 uppercase text-[9px] tracking-wider block">Question:</span>
+                                <p className="text-slate-800 font-medium mt-0.5 italic">"{q.questionText}"</p>
+                              </div>
+
+                              {q.status === 'Answered' ? (
+                                <div className="p-2.5 bg-emerald-50 border border-emerald-150 rounded text-emerald-950 font-serif">
+                                  <span className="text-[9px] uppercase font-bold tracking-wider text-emerald-800 block font-sans mb-0.5">Your Response:</span>
+                                  "{q.coachResponse}"
+                                </div>
+                              ) : (
+                                <div className="pt-2 border-t border-slate-200">
+                                  {answeringQId === q.id ? (
+                                    <div className="space-y-2">
+                                      <textarea
+                                        rows={2}
+                                        value={responseText}
+                                        onChange={(e) => setResponseText(e.target.value)}
+                                        placeholder="Write technical advice..."
+                                        className="w-full px-2 py-1.5 border border-slate-200 rounded text-xs focus:outline-none focus:border-indigo-500"
+                                      />
+                                      <div className="flex gap-2 justify-end">
+                                        <button
+                                          type="button"
+                                          onClick={() => { setAnsweringQId(null); setResponseText(''); }}
+                                          className="px-2 py-1 bg-slate-100 text-slate-655 rounded hover:bg-slate-200 transition font-semibold"
+                                        >
+                                          Cancel
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleAnswerQuestionSubmit(q.id)}
+                                          className="px-2.5 py-1 bg-emerald-600 text-white rounded hover:bg-emerald-700 transition font-semibold"
+                                        >
+                                          Submit Answer
+                                        </button>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={() => { setAnsweringQId(q.id); setResponseText(''); }}
+                                      className="w-full py-1.5 bg-slate-900 hover:bg-slate-800 text-white text-center font-bold rounded transition"
+                                    >
+                                      Answer Help Call
+                                    </button>
+                                  )}
+                                </div>
+                              )}
                             </div>
-                          </div>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => { setAnsweringQId(q.id); setResponseText(''); }}
-                            className="w-full py-1.5 bg-slate-900 hover:bg-slate-800 text-white text-center font-bold rounded transition"
-                          >
-                            Answer Help Call
-                          </button>
-                        )}
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="py-4 text-center bg-slate-50 border border-dashed border-slate-200 rounded-lg text-xs text-slate-500">
+                          No technical questions submitted by this athlete yet.
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
+              </div>
+
+              {/* Section 6: Completed Practice Logs & Video Proof */}
+              <div className="bg-white rounded-xl p-6 border border-slate-200 shadow-sm space-y-4">
+                <h3 className="text-base font-semibold text-slate-800 flex items-center gap-2 pb-2 border-b border-slate-100">
+                  <Dumbbell className="h-5 w-5 text-emerald-500" />
+                  6. Completed Practice Logs & Video Proof
+                </h3>
+
+                {(() => {
+                  const currentPlayerLogs = logs.filter(l => l.playerId === selectedPlayerId);
+                  if (currentPlayerLogs.length === 0) {
+                    return (
+                      <div className="py-6 text-center bg-slate-50 border border-dashed border-slate-200 rounded-lg text-xs text-slate-500">
+                        No practice logs submitted by this athlete yet.
                       </div>
-                    )}
-                  </div>
-                ))}
+                    );
+                  }
+
+                  return (
+                    <div className="space-y-4 max-h-96 overflow-y-auto pr-1">
+                      {currentPlayerLogs.map((log) => {
+                        const drill = drills.find(d => d.id === log.drillId);
+                        return (
+                          <div key={log.id} className="p-3.5 bg-slate-50 border border-slate-200 rounded-lg space-y-2 text-xs">
+                            <div className="flex justify-between items-center text-[10px] font-bold text-slate-400">
+                              <span>Date: {log.date}</span>
+                              <span className={`px-1.5 py-0.5 rounded uppercase font-sans ${
+                                log.verifiedByCoach ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                              }`}>
+                                {log.verifiedByCoach ? 'Verified' : 'Pending Review'}
+                              </span>
+                            </div>
+
+                            <div>
+                              <span className="font-semibold text-slate-500 uppercase text-[9px] tracking-wider block">Drill:</span>
+                              <h4 className="font-bold text-slate-800 text-xs mt-0.5">{drill?.name || log.drillId}</h4>
+                            </div>
+
+                            <div>
+                              <span className="font-semibold text-slate-500 uppercase text-[9px] tracking-wider block">Player Notes:</span>
+                              <p className="text-slate-650 font-medium mt-0.5 italic">"{log.notes}"</p>
+                            </div>
+
+                            {log.videoUrl && (
+                              <div className="mt-2 space-y-1">
+                                <span className="font-semibold text-slate-500 uppercase text-[9px] tracking-wider block">Video Proof:</span>
+                                <div className="aspect-video w-full rounded-lg overflow-hidden border border-slate-200 bg-black">
+                                  <video 
+                                    src={log.videoUrl} 
+                                    controls 
+                                    className="w-full h-full object-contain"
+                                  />
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
               </div>
-            ) : (
-              <div className="py-4 text-center bg-slate-50 border border-dashed border-slate-200 rounded-lg text-xs text-slate-500">
-                No technical questions submitted by athletes.
-              </div>
-            )}
-          </div>
+            </div>
 
         </div>
       </div>

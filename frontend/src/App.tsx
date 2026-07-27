@@ -394,6 +394,8 @@ function AppContent() {
                   players={players}
                   drills={drills}
                   sessions={sessions}
+                  logs={logs}
+                  matches={matches}
                   questions={questions}
                   onAnswerQuestion={handleAnswerQuestion}
                   onAddSession={handleAddSession}
@@ -405,6 +407,8 @@ function AppContent() {
                   players={players}
                   drills={drills}
                   matches={matches}
+                  logs={logs}
+                  sessions={sessions}
                   onAddMatchReport={handleAddMatchReport}
                 />
               )}

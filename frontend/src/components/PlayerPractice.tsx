@@ -22,11 +22,13 @@ import {
   Award,
   BarChart2,
   BookOpen,
+  Film,
   X
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import { motion } from 'motion/react';
 import { uploadVideo } from '../lib/api';
+import { getPlayerTechniqueInsights } from '../lib/insights';
 
 interface PlayerPracticeProps {
   players: Player[];
@@ -46,6 +48,16 @@ interface PlayerPracticeProps {
     suggestedRemedy: string;
   } | null>;
 }
+
+const getYoutubeEmbedUrl = (url?: string) => {
+  if (!url) return '';
+  const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+  const match = url.match(regExp);
+  if (match && match[2].length === 11) {
+    return `https://www.youtube.com/embed/${match[2]}`;
+  }
+  return '';
+};
 
 export const PlayerPractice: React.FC<PlayerPracticeProps> = ({
   players,
@@ -89,15 +101,17 @@ export const PlayerPractice: React.FC<PlayerPracticeProps> = ({
   // Player's assigned sessions and drills
   const currentPlayerSessions = sessions.filter(s => s.playerId === selectedPlayerId);
   const currentPlayerFixed = fixedReferences.filter(fr => fr.playerId === selectedPlayerId);
+  const currentPlayerLogs = logs.filter(l => l.playerId === selectedPlayerId);
+  const currentPlayerQuestions = questions.filter(q => q.playerId === selectedPlayerId);
 
   // --- PARENT INSIGHTS CALCULATIONS ---
   const currentMonth = new Date().toISOString().slice(0, 7); // e.g., "2026-07"
-  const logsThisMonth = logs.filter(l => l.date.startsWith(currentMonth));
+  const logsThisMonth = currentPlayerLogs.filter(l => l.date.startsWith(currentMonth));
   const targetMonthlyLogs = 20; // Assume 20 practice days a month as target
   const complianceRate = Math.min(Math.round((logsThisMonth.length / targetMonthlyLogs) * 100), 100);
   
-  const pendingQuestions = questions.filter(q => q.status === 'Pending').length;
-  const answeredQuestions = questions.filter(q => q.status === 'Answered').length;
+  const pendingQuestions = currentPlayerQuestions.filter(q => q.status === 'Pending').length;
+  const answeredQuestions = currentPlayerQuestions.filter(q => q.status === 'Answered').length;
 
   const handleFileUpload = async (file: File) => {
     setUploadError('');
@@ -142,6 +156,7 @@ export const PlayerPractice: React.FC<PlayerPracticeProps> = ({
     const logId = 'log_' + Date.now();
     const newLog: PracticeLog = {
       id: logId,
+      playerId: selectedPlayerId,
       date: new Date().toISOString().split('T')[0],
       drillId: selectedDrillId,
       notes: logNotes,
@@ -154,6 +169,7 @@ export const PlayerPractice: React.FC<PlayerPracticeProps> = ({
     if (askQuestionChecked && logQuestionText.trim()) {
       const newQuestion: PlayerPracticeQuestion = {
         id: 'q_' + logId,
+        playerId: selectedPlayerId,
         date: newLog.date,
         questionText: logQuestionText.trim(),
         videoUrl: newLog.videoUrl || 'https://assets.mixkit.co/videos/preview/mixkit-cricket-player-batting-in-slow-motion-32533-large.mp4',
@@ -178,6 +194,7 @@ export const PlayerPractice: React.FC<PlayerPracticeProps> = ({
     if (!text.trim()) return;
     const newQuestion: PlayerPracticeQuestion = {
       id: 'q_' + logId,
+      playerId: selectedPlayerId,
       date: new Date().toISOString().split('T')[0],
       questionText: text.trim(),
       videoUrl: logVideoUrl || 'https://assets.mixkit.co/videos/preview/mixkit-cricket-player-batting-in-slow-motion-32533-large.mp4',
@@ -364,12 +381,30 @@ export const PlayerPractice: React.FC<PlayerPracticeProps> = ({
                         {session.assignedDrillIds.map(drillId => {
                           const drill = drills.find(d => d.id === drillId);
                           return drill ? (
-                            <div key={drill.id} className="border border-slate-150 rounded-xl p-4 bg-white hover:border-indigo-200 transition">
-                              <span className="text-[9px] font-bold uppercase text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded">
-                                {drill.category}
-                              </span>
-                              <h5 className="font-bold text-slate-800 text-sm mt-1">{drill.name}</h5>
-                              <p className="text-xs text-slate-600 mt-1 line-clamp-2">{drill.description}</p>
+                            <div key={drill.id} className="border border-slate-150 rounded-xl p-4 bg-white hover:border-indigo-200 transition flex flex-col justify-between">
+                              <div>
+                                <span className="text-[9px] font-bold uppercase text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded">
+                                  {drill.category}
+                                </span>
+                                <h5 className="font-bold text-slate-800 text-sm mt-1">{drill.name}</h5>
+                                <p className="text-xs text-slate-600 mt-1">{drill.description}</p>
+                              </div>
+
+                              {drill.youtubeUrl && (() => {
+                                const embedUrl = getYoutubeEmbedUrl(drill.youtubeUrl);
+                                if (!embedUrl) return null;
+                                return (
+                                  <div className="mt-3 aspect-video w-full rounded-lg overflow-hidden border border-slate-100 bg-slate-50">
+                                    <iframe
+                                      src={embedUrl}
+                                      title={drill.name}
+                                      className="w-full h-full border-0"
+                                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                      allowFullScreen
+                                    />
+                                  </div>
+                                );
+                              })()}
                             </div>
                           ) : null;
                         })}
@@ -379,6 +414,23 @@ export const PlayerPractice: React.FC<PlayerPracticeProps> = ({
                     {session.coachComments && (
                       <div className="mt-2 p-3 bg-indigo-50/50 border border-indigo-100 rounded-lg text-xs text-indigo-900 italic">
                         <strong>Coach remarks:</strong> "{session.coachComments}"
+                      </div>
+                    )}
+
+                    {session.videoUrl && (
+                      <div className="mt-4 space-y-2 bg-slate-50 border border-slate-200 p-4 rounded-xl">
+                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block flex items-center gap-1.5">
+                          <Film className="h-3.5 w-3.5 text-indigo-500" />
+                          Coach Recorded Net Session Video
+                        </span>
+                        <div className="aspect-video w-full rounded-lg overflow-hidden border border-slate-250 bg-black">
+                          <video 
+                            src={session.videoUrl} 
+                            controls 
+                            className="w-full h-full object-contain"
+                          />
+                        </div>
+                        <p className="text-[10px] text-slate-400 italic">File: {session.videoName}</p>
                       </div>
                     )}
                   </div>
@@ -442,6 +494,61 @@ export const PlayerPractice: React.FC<PlayerPracticeProps> = ({
                 </div>
               )}
             </div>
+
+            {/* Technique Focus Timeline / Progression Tracker */}
+            {(() => {
+              const insights = getPlayerTechniqueInsights(selectedPlayerId, sessions, matches, logs, drills);
+              const activeInsights = insights.filter(ins => ins.complianceStatus !== 'Neutral');
+              
+              if (activeInsights.length === 0) return null;
+
+              return (
+                <div className="lg:col-span-3 bg-white rounded-xl border border-slate-200 p-6 shadow-sm space-y-4">
+                  <h3 className="text-base font-bold text-slate-800 flex items-center gap-2 pb-2 border-b border-slate-100">
+                    <BarChart2 className="h-5 w-5 text-indigo-500" />
+                    My Technical Progress & Technique Timeline
+                  </h3>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {activeInsights.map(ins => (
+                      <div 
+                        key={ins.conceptId} 
+                        className={`p-4 rounded-xl border transition ${
+                          ins.complianceStatus === 'Low' ? 'bg-rose-50/40 border-rose-200' :
+                          ins.complianceStatus === 'Medium' ? 'bg-amber-50/40 border-amber-200' :
+                          ins.complianceStatus === 'High' ? 'bg-emerald-50/40 border-emerald-200' :
+                          'bg-indigo-50/40 border-indigo-200'
+                        }`}
+                      >
+                        <div className="flex justify-between items-center gap-2">
+                          <h4 className="text-sm font-bold text-slate-800">{ins.conceptName}</h4>
+                          <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase ${
+                            ins.complianceStatus === 'Low' ? 'bg-rose-100 text-rose-800' :
+                            ins.complianceStatus === 'Medium' ? 'bg-amber-100 text-amber-800' :
+                            ins.complianceStatus === 'High' ? 'bg-emerald-100 text-emerald-800' :
+                            'bg-indigo-100 text-indigo-850'
+                          }`}>
+                            {ins.complianceStatus === 'Mastered' ? 'Mastered' : `${ins.complianceStatus} Compliance`}
+                          </span>
+                        </div>
+                        
+                        <p className="text-xs text-slate-655 font-medium leading-relaxed mt-2">
+                          {ins.verdictMessage}
+                        </p>
+
+                        <div className="mt-3 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 pt-2.5 border-t border-slate-100/60 text-[10px] text-slate-400 font-semibold">
+                          <span>Focus Drills: {ins.relatedDrillNames.join(', ')}</span>
+                          <span className="bg-white/80 border border-slate-200/80 px-2 py-0.5 rounded text-slate-700 shrink-0">
+                            Completed: {ins.practiceCount} reps
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
+
           </div>
         )}
 
@@ -642,8 +749,8 @@ export const PlayerPractice: React.FC<PlayerPracticeProps> = ({
             <div className="lg:col-span-2 space-y-4">
               <h3 className="text-base font-bold text-slate-800">Practice History Logs</h3>
               <div className="space-y-4">
-                {logs.length > 0 ? (
-                  logs.map((log) => {
+                {currentPlayerLogs.length > 0 ? (
+                  currentPlayerLogs.map((log) => {
                     const drill = drills.find(d => d.id === log.drillId);
                     return (
                       <div key={log.id} className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm flex flex-col md:flex-row justify-between gap-4">
@@ -928,7 +1035,12 @@ export const PlayerPractice: React.FC<PlayerPracticeProps> = ({
                           {/* Match Header */}
                           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-2 pb-3 border-b border-slate-100">
                             <div>
-                              <h4 className="text-sm font-bold text-slate-800">{m.matchName}</h4>
+                              <h4 className="text-sm font-bold text-slate-800 flex items-center gap-1.5 flex-wrap">
+                                {m.matchName}
+                                <span className="text-[9px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded font-sans font-bold border border-slate-200">
+                                  {m.matchFormat || 'T20'}
+                                </span>
+                              </h4>
                               <span className="text-[10px] text-slate-400 font-mono font-bold block mt-0.5">Played on: {m.date}</span>
                             </div>
 

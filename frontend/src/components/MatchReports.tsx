@@ -1,30 +1,37 @@
 import React, { useState } from 'react';
-import { Player, Drill, MatchPerformance } from '../types';
-import { FileText, Sparkles, Plus, Trophy, MessageSquare, ListTodo, TrendingUp, CheckCircle, RefreshCw } from 'lucide-react';
+import { Player, Drill, MatchPerformance, PracticeLog, CoachSessionInput } from '../types';
+import { FileText, Sparkles, Plus, Trophy, MessageSquare, ListTodo, TrendingUp, CheckCircle, RefreshCw, AlertTriangle } from 'lucide-react';
 import { motion } from 'motion/react';
+import { getPlayerTechniqueInsights, detectFeedbackDeviationAlert, RecurringIssueAlert } from '../lib/insights';
 
 interface MatchReportsProps {
   players: Player[];
   drills: Drill[];
   matches: MatchPerformance[];
+  logs: PracticeLog[];
+  sessions: CoachSessionInput[];
   onAddMatchReport: (report: MatchPerformance) => void;
 }
 
-export const MatchReports: React.FC<MatchReportsProps> = ({ players, drills, matches, onAddMatchReport }) => {
+export const MatchReports: React.FC<MatchReportsProps> = ({ 
+  players, 
+  drills, 
+  matches, 
+  logs,
+  sessions,
+  onAddMatchReport 
+}) => {
   const [selectedPlayerId, setSelectedPlayerId] = useState(players[0]?.id || '');
-  const [matchName, setMatchName] = useState('Academy Super Series - T20 Finals');
-  const [runsScored, setRunsScored] = useState(38);
-  const [ballsFaced, setBallsFaced] = useState(25);
+  const [matchName, setMatchName] = useState('');
+  const [matchFormat, setMatchFormat] = useState('T20');
+  const [runsScored, setRunsScored] = useState(0);
+  const [ballsFaced, setBallsFaced] = useState(0);
   const [wicketsTaken, setWicketsTaken] = useState(0);
   const [runsConceded, setRunsConceded] = useState(0);
   const [oversBowled, setOversBowled] = useState(0);
 
-  const [observerNotes, setObserverNotes] = useState(
-    "Aarav got off to a quick start scoring 38. Handled spin elegantly. But played cover drives far away from body against fast bowler outside off stump, dropping front shoulder. Caught at slips."
-  );
-  const [coachFeedback, setCoachFeedback] = useState(
-    "Aarav showed excellent intent and footwork against spin today! We need to focus on keeping the front foot anchored and elbows high when playing drives outside off-stump."
-  );
+  const [observerNotes, setObserverNotes] = useState('');
+  const [coachFeedback, setCoachFeedback] = useState('');
 
   const [analyzing, setAnalyzing] = useState(false);
   const [reportSaved, setReportSaved] = useState(false);
@@ -56,6 +63,7 @@ export const MatchReports: React.FC<MatchReportsProps> = ({ players, drills, mat
         date: new Date().toISOString().split('T')[0],
         matchName,
         playerId: selectedPlayerId,
+        matchFormat,
         runsScored: currentRole !== 'Bowler' ? runsScored : undefined,
         ballsFaced: currentRole !== 'Bowler' ? ballsFaced : undefined,
         wicketsTaken: currentRole === 'Bowler' || currentRole === 'All-Rounder' ? wicketsTaken : undefined,
@@ -120,16 +128,67 @@ export const MatchReports: React.FC<MatchReportsProps> = ({ players, drills, mat
               </select>
             </div>
 
-            <div>
-              <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">Match/Tournament Name</label>
-              <input
-                type="text"
-                required
-                value={matchName}
-                onChange={(e) => setMatchName(e.target.value)}
-                placeholder="e.g. Academy Derby, Under 15 tournament"
-                className="w-full px-3 py-2 border border-slate-200 text-xs rounded-lg focus:outline-none"
-              />
+            {/* Technique Insights Panel */}
+            {(() => {
+              const insights = getPlayerTechniqueInsights(selectedPlayerId, sessions, matches, logs, drills);
+              const activeInsights = insights.filter(ins => ins.complianceStatus !== 'Neutral');
+              
+              if (activeInsights.length === 0) return null;
+
+              return (
+                <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block flex items-center gap-1">
+                    <Sparkles className="h-3.5 w-3.5 text-indigo-500 animate-pulse" />
+                    Athlete History & Technique Insights
+                  </span>
+                  <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+                    {activeInsights.map(ins => (
+                      <div key={ins.conceptId} className="p-2 bg-white border border-slate-100 rounded-lg space-y-1 shadow-2xs">
+                        <div className="flex justify-between items-center gap-2">
+                          <h4 className="text-[11px] font-bold text-slate-800 leading-none">{ins.conceptName}</h4>
+                          <span className={`text-[8px] font-bold px-1.5 py-0.2 rounded uppercase leading-none ${
+                            ins.complianceStatus === 'Low' ? 'bg-rose-100 text-rose-800' :
+                            ins.complianceStatus === 'Medium' ? 'bg-amber-100 text-amber-800' :
+                            ins.complianceStatus === 'High' ? 'bg-emerald-100 text-emerald-800' :
+                            'bg-indigo-100 text-indigo-800'
+                          }`}>
+                            {ins.complianceStatus === 'Mastered' ? 'Mastered' : `${ins.complianceStatus} Compliance`}
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-slate-655 font-medium leading-tight">{ins.verdictMessage}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">Match/Tournament Name</label>
+                <input
+                  type="text"
+                  required
+                  value={matchName}
+                  onChange={(e) => setMatchName(e.target.value)}
+                  placeholder="e.g. Academy Derby"
+                  className="w-full px-3 py-2 border border-slate-200 text-xs rounded-lg focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">Match Format</label>
+                <select
+                  value={matchFormat}
+                  onChange={(e) => setMatchFormat(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-200 text-xs rounded-lg bg-slate-50 focus:outline-none"
+                >
+                  <option value="5 Overs">5 Overs</option>
+                  <option value="10 Overs">10 Overs</option>
+                  <option value="T20">T20</option>
+                  <option value="ODI">ODI</option>
+                  <option value="Test">Test Match</option>
+                </select>
+              </div>
             </div>
 
             {/* Role specific metrics */}
@@ -211,6 +270,64 @@ export const MatchReports: React.FC<MatchReportsProps> = ({ players, drills, mat
               />
             </div>
 
+            {/* Real-time Recurring Technique Warning Alert Cards */}
+            {(() => {
+              const currentFeedbackText = `${observerNotes} ${coachFeedback}`;
+              const alerts = detectFeedbackDeviationAlert(
+                selectedPlayerId,
+                currentFeedbackText,
+                sessions,
+                matches,
+                logs,
+                drills
+              );
+
+              if (alerts.length === 0) return null;
+
+              return (
+                <div className="space-y-2.5 animate-fade-in p-4 bg-amber-50/50 border border-amber-300 rounded-xl shadow-md shadow-amber-100/50 relative overflow-hidden">
+                  {/* Glowing pulse indicator */}
+                  <div className="absolute top-0 left-0 w-1 h-full bg-amber-500 animate-pulse" />
+                  
+                  <span className="text-[10px] font-black text-amber-800 uppercase tracking-widest flex items-center gap-1.5 font-sans">
+                    <AlertTriangle className="h-4 w-4 text-amber-600 animate-bounce" />
+                    Recurring Technique Issue Alert
+                  </span>
+
+                  <div className="space-y-2">
+                    {alerts.map(alert => (
+                      <div key={alert.conceptId} className="text-xs space-y-1">
+                        <div className="flex items-center justify-between gap-2 flex-wrap">
+                          <span className="font-bold text-slate-800 text-xs">Category: {alert.conceptName}</span>
+                          <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase ${
+                            alert.severity === 'Critical' ? 'bg-rose-100 text-rose-800 border border-rose-250 animate-pulse' :
+                            alert.severity === 'Warning' ? 'bg-amber-100 text-amber-800 border border-amber-250' :
+                            'bg-blue-100 text-blue-800 border border-blue-250'
+                          }`}>
+                            {alert.severity} status
+                          </span>
+                        </div>
+                        
+                        <p className="text-slate-655 font-medium leading-relaxed font-serif text-xs italic bg-white/70 p-2.5 rounded-lg border border-amber-200 shadow-2xs">
+                          "{alert.message}"
+                        </p>
+
+                        <div className="flex items-center gap-1.5 text-[10px] text-slate-500 pt-1 font-semibold flex-wrap">
+                          <span>Practiced corrective drills:</span>
+                          <span className="text-slate-900 font-bold bg-slate-200/60 px-1.5 py-0.2 rounded font-sans">
+                            {alert.practiceCount} times
+                          </span>
+                          {alert.practiceCount > 0 && (
+                            <span className="text-slate-400">({alert.relatedDrillNames.join(', ')})</span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
+
             <button
               type="submit"
               disabled={analyzing || reportSaved}
@@ -251,7 +368,12 @@ export const MatchReports: React.FC<MatchReportsProps> = ({ players, drills, mat
                   <div className="bg-slate-900 text-white p-4 flex justify-between items-center">
                     <div>
                       <span className="text-[10px] text-slate-400 font-mono block">{perf.date}</span>
-                      <h4 className="font-bold text-sm text-slate-100">{perf.matchName}</h4>
+                      <h4 className="font-bold text-sm text-slate-100 flex items-center gap-1.5 flex-wrap">
+                        {perf.matchName}
+                        <span className="text-[9px] bg-slate-800 text-slate-300 px-2 py-0.5 rounded font-sans font-bold border border-slate-700">
+                          {perf.matchFormat || 'T20'}
+                        </span>
+                      </h4>
                       <p className="text-xs text-slate-300">Player: <strong>{player?.name}</strong> ({player?.role})</p>
                     </div>
 
